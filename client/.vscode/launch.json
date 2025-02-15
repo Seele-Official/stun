@@ -1,0 +1,28 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+          "name": "调试 C++ (GDB)",
+          "type": "cppdbg",
+          "request": "launch",
+          "program": "${workspaceRoot}/build/Client",
+          "args": [],
+          "stopAtEntry": false,
+          "cwd": "${workspaceFolder}",
+          "MIMode": "gdb",
+          // "setupCommands": [
+          //   {
+          //     "description": "启用打印 Pretty",
+          //     "text": "-enable-pretty-printing",
+          //     "ignoreFailures": true
+          //   }
+          // ],
+          // "logging": {
+          //   "engineLogging": true,
+          //   "trace": true,
+          //   "traceResponse": true
+          // }
+    
+        }
+      ]
+}
