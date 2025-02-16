@@ -152,10 +152,13 @@ public:
         this->header->type = type;
         this->header->length = 0;
         this->header->magicCookie = stun::MAGIC_COOKIE;
+        this->endptr = data + sizeof(stunHeader);
+
 
         std::ifstream urandom("/dev/urandom", std::ios::in | std::ios::binary);
         urandom.read(reinterpret_cast<char*>(this->header->transactionID.data), 12);
         urandom.close();
+
     }
 
     explicit stunMessage(const uint8_t* data, size_t size) : data{new uint8_t[size]}{
@@ -242,6 +245,18 @@ public:
         }
 
         std::memcpy(endptr, attribute, sizeof(attribute_t));
+        endptr += sizeof(attribute_t);
+        setLength(endptr - reinterpret_cast<uint8_t*>(header) - sizeof(stunHeader));
+        return true;
+    }
+
+    template<is_stunAttribute attribute_t, typename... args_t>
+    bool emplace(args_t&&... args){
+        if (endptr + sizeof(attribute_t) > data + 548) {
+            return false;
+        }
+
+        new(endptr) attribute_t(std::forward<args_t>(args)...);
         endptr += sizeof(attribute_t);
         setLength(endptr - reinterpret_cast<uint8_t*>(header) - sizeof(stunHeader));
         return true;

@@ -43,7 +43,7 @@ struct stunAttribute {
         return reinterpret_cast<attribute_t*>(this);
     }
 
-    constexpr uint16_t getid(){ return 0;}
+    constexpr static uint16_t getid(){ return 0;}
 };
 
 struct ipv4_mappedAddress : public stunAttribute {
@@ -51,7 +51,7 @@ struct ipv4_mappedAddress : public stunAttribute {
     uint8_t family;
     uint16_t port;
     uint32_t address;
-    constexpr uint16_t getid(){ return stun::attribute::MAPPED_ADDRESS;}
+    constexpr static uint16_t getid(){ return stun::attribute::MAPPED_ADDRESS;}
 };
 
 struct ipv4_xor_mappedAddress : public stunAttribute {
@@ -59,7 +59,7 @@ struct ipv4_xor_mappedAddress : public stunAttribute {
     uint8_t family;
     uint16_t x_port;
     uint32_t x_address;
-    constexpr uint16_t getid(){ return stun::attribute::XOR_MAPPED_ADDRESS;}
+    constexpr static uint16_t getid(){ return stun::attribute::XOR_MAPPED_ADDRESS;}
 };
 
 struct ipv4_responseOrigin : public stunAttribute {
@@ -67,7 +67,7 @@ struct ipv4_responseOrigin : public stunAttribute {
     uint8_t family;
     uint16_t port;
     uint32_t address;
-    constexpr uint16_t getid(){ return stun::attribute::RESPONSE_ORIGIN;}
+    constexpr static uint16_t getid(){ return stun::attribute::RESPONSE_ORIGIN;}
 };
 
 struct ipv4_otherAddress : public stunAttribute {
@@ -75,16 +75,18 @@ struct ipv4_otherAddress : public stunAttribute {
     uint8_t family;
     uint16_t port;
     uint32_t address;
-    constexpr uint16_t getid(){ return stun::attribute::OTHER_ADDRESS;}
+    constexpr static uint16_t getid(){ return stun::attribute::OTHER_ADDRESS;}
 };
 
 struct changeRequest : public stunAttribute {
     uint8_t zero[3];
     uint8_t flags;
-    constexpr uint16_t getid(){ return stun::attribute::CHANGE_REQUEST;}
+    constexpr static uint16_t getid(){ return stun::attribute::CHANGE_REQUEST;}
+    
+    explicit changeRequest(uint8_t flags) : flags{flags} {}
 };
 
 struct softWare : public stunAttribute {
     char value[0];
-    constexpr uint16_t getid(){ return stun::attribute::SOFTWARE;}
+    constexpr static uint16_t getid(){ return stun::attribute::SOFTWARE;}
 };

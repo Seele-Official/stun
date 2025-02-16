@@ -9,19 +9,22 @@
 #include <tuple>
 #include <sys/types.h>
 
+template <typename ipinfo_t>
 class TransactionManager{
 public:
+    using responce_t = std::tuple<ipinfo_t, stunMessage>;
+
     struct registerAwaiter{
         transactionID_t transactionID;
-        stunMessage response;
+        responce_t response;
         bool await_ready() const noexcept { return false; }
         void await_suspend(std::coroutine_handle<> handle) noexcept {
             get_instance().registerTransaction(handle, this);
         }
-        stunMessage& await_resume(){
+        responce_t& await_resume(){
             return response;
         }
-        registerAwaiter(stunMessage_view msg): transactionID{msg.getTransactionID()} {}
+        registerAwaiter(transactionID_t id): transactionID{id} {}
     };
 
 
@@ -46,11 +49,10 @@ public:
             std::forward_as_tuple(handle, awaiter));
     }
 
-    void onResponse(stunMessage&& response){
-        if (!response.isValid()) return;
+    void onResponse(responce_t&& response){
 
         std::lock_guard lock{m};
-        auto it = transactions.find(response.getTransactionID());
+        auto it = transactions.find(std::get<1>(response).getTransactionID());
         if (it != transactions.end()){
             it->second.awaiter->response = std::move(response);
             it->second.handle.resume();
@@ -79,28 +81,30 @@ public:
 };
 
 
-template <typename Derived>
+template <typename Derived, typename ipinfo_t>
 class client{
 private:
-    Timer timer;
+    using responce_t = std::tuple<ipinfo_t, stunMessage>;
+    using request_t = std::tuple<ipinfo_t, stunMessage_view>;
 
+    Timer timer;
     std::jthread listener_thread;
 
     void listener(std::stop_token st){
         while(!st.stop_requested()){
             auto response = static_cast<Derived*>(this)->receive();
-            if (response.empty()) continue;
-            TransactionManager::get_instance().onResponse(std::move(response));
+            if (!std::get<1>(response).empty() && std::get<1>(response).isValid())
+                TransactionManager<ipinfo_t>::get_instance().onResponse(std::move(response));
         }
     }
 
-    void send(stunMessage_view msg){
+    void send(request_t request){
         // send
     }
 
-    stunMessage receive(){
+    responce_t receive(){
         // receive
-        return stunMessage{};
+        return responce_t{ipinfo_t{}, stunMessage{}};
     }
 
 
@@ -114,37 +118,40 @@ public:
         listener_thread.request_stop();
     }
 
-    lazy_task<stunMessage> asyncRequest(stunMessage_view msg, size_t retry = 7){
+    lazy_task<responce_t> asyncRequest(const ipinfo_t& ip, stunMessage_view msg, size_t retry = 7){
         struct State {
             uint64_t id{};
             size_t times{};
             uint64_t expiry{};
 
-            stunMessage_view msg; 
+            request_t request;
+            
             size_t max_times;
             transactionID_t transactionID;
             std::function<void()> callback;
-            State(stunMessage_view msg, size_t retry): msg{msg}, transactionID{msg.getTransactionID()}, max_times{retry} {}
+            State(ipinfo_t ip, stunMessage_view msg, size_t retry): request{ip, msg}, transactionID{msg.getTransactionID()}, max_times{retry} {}
         };
     
 
-        State state{msg, retry};
+        State state{ip, msg, retry};
     
         state.callback = [&state, this]() { 
             if (state.times < state.max_times){ 
-                static_cast<Derived*>(this)->send(state.msg);
-                if (state.times != 0) std::cout << "retry " << state.times << " id: " << state.id << std::endl;
+                static_cast<Derived*>(this)->send(state.request);
+                // if (state.times != 0) std::cout << "retry " << state.times << " id: " << state.id << std::endl;
                 state.times++;
                 state.expiry = state.expiry * 2 + 500;
                 state.id = timer.schedule(state.callback, state.expiry);
             } else {
-                TransactionManager::get_instance().onTimeout(state.transactionID);
+                TransactionManager<ipinfo_t>::get_instance().onTimeout(state.transactionID);
             }
         };
     
         state.id = timer.schedule(state.callback, 0);
-    
-        stunMessage response{std::move(co_await TransactionManager::registerAwaiter{msg})};
+
+
+
+        auto response = std::move(co_await typename TransactionManager<ipinfo_t>::registerAwaiter{state.transactionID});
     
         timer.cancel(state.id);
 
