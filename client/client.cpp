@@ -1,4 +1,5 @@
 #include <cstdint>
+#include <iostream>
 #include <sys/socket.h>
 #include <netinet/in.h> 
 #include <ifaddrs.h>
@@ -24,11 +25,11 @@ struct ipv4info{
 class clientImpl : public client<clientImpl, ipv4info>{
 private:
     friend class client<clientImpl, ipv4info>;
-    using responce_t = std::tuple<ipv4info, stunMessage>;
-    using request_t = std::tuple<ipv4info, stunMessage_view>;
+    using client<clientImpl, ipv4info>::request_t;
+    using client<clientImpl, ipv4info>::responce_t;
 
     int socketfd;
-
+    timeval timeout;
     uint32_t myIP; 
     uint16_t myPort;
     void send(request_t request){
@@ -53,7 +54,7 @@ private:
         if (recvlen == -1){
             return responce_t{ipv4info{}, stunMessage{}};
         }
-
+        std::cout << "received " << recvlen << " bytes" << std::endl;
         return responce_t{
             ipv4info{from.sin_addr.s_addr, from.sin_port}, 
             stunMessage{buffer, static_cast<size_t>(recvlen)}
@@ -100,6 +101,10 @@ public:
             //
         }
         
+        timeout.tv_sec = 1;  
+        timeout.tv_usec = 0;
+        
+        setsockopt(socketfd, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout));
     }
 
     ~clientImpl(){
@@ -169,131 +174,141 @@ void trval(stunMessage_view msg){
 
 
 
-std::tuple<int, ipv4info, ipv4info> test1(clientImpl& c, ipv4info& serverip){
+enum class mapping_type{
+    unsupported,
+    endpoint_independent_mapping_no_nat,
+    endpoint_independent_mapping,
+    address_dependent_mapping,
+    address_and_port_dependent_mapping,
+};
+
+enum class filtering_type{
+    endpoint_independent_filtering,
+    address_dependent_filtering,
+    address_and_port_dependent_filtering
+};
+
+mapping_type maping_test(clientImpl& c, ipv4info& server_ip){
+
+    // test 1
     stunMessage request_msg(stun::messagemethod::BINDING | stun::messagetype::REQUEST);
 
-    auto response = c.asyncRequest(serverip, request_msg);
+    auto response = c.asyncRequest(server_ip, request_msg);
     auto& [ip, responce_msg] = response.get_return_value();
-    if (responce_msg.empty()){ /* unsupported */ return {0, ipv4info{}, ipv4info{}};}
+    if (responce_msg.empty()){ /* unsupported */ return mapping_type::unsupported;}
 
 
     std::cout << "response from: " << inet_ntoa({ip.net_address}) << ":" << ntohs(ip.net_port) << std::endl;
 
     auto x_address = responce_msg.find<ipv4_xor_mappedAddress>();
     auto other_address = responce_msg.find<ipv4_otherAddress>();
-    if (other_address == nullptr || x_address == nullptr){ /* unsupported */ return {0, ipv4info{}, ipv4info{}};}
+    if (other_address == nullptr || x_address == nullptr){ /* unsupported */ return mapping_type::unsupported;}
 
-    ipv4info x_ip{
+    ipv4info first_x_ip{
         x_address->x_address ^ stun::MAGIC_COOKIE, 
         static_cast<uint16_t>(x_address->x_port ^ stun::MAGIC_COOKIE)
-    };
-    std::cout << "x_ip: " << inet_ntoa({x_ip.net_address}) << ":" << ntohs(x_ip.net_port) << std::endl;
-
-
-    ipv4info server_other_ip{
+    }, server_other_ip{
         other_address->address,
         other_address->port
     };
+    
+    std::cout << "x_ip: " << inet_ntoa({first_x_ip.net_address}) << ":" << ntohs(first_x_ip.net_port) << std::endl;
     std::cout << "server_other_ip: " << inet_ntoa({server_other_ip.net_address}) << ":" << ntohs(server_other_ip.net_port) << std::endl;
 
-
-    if (x_ip == c.getMyInfo()){
+    if (first_x_ip == c.getMyInfo()){
         // endpoint independent mapping, no NAT
-        return {1, x_ip, server_other_ip};
+        return mapping_type::endpoint_independent_mapping_no_nat;
     }
 
-    // to next test
-    return {2, x_ip, server_other_ip};
-}
 
-
-int test2(clientImpl& c, ipv4info& server_other_ip, ipv4info& first_x_ip){
-    stunMessage request_msg(stun::messagemethod::BINDING | stun::messagetype::REQUEST);
-
-    auto response = c.asyncRequest(
-        ipv4info{server_other_ip.net_address, htons(3478)},
-        request_msg
-    );
-    auto& [ip, responce_msg] = response.get_return_value();
-    if (responce_msg.empty()){ /* unsupported */ return 0;}
-
-    std::cout << "response from: " << inet_ntoa({ip.net_address}) << ":" << ntohs(ip.net_port) << std::endl;
-
-    auto x_address = responce_msg.find<ipv4_xor_mappedAddress>();
-    if (x_address == nullptr){ /* unsupported */ return 0;}
-
-    ipv4info second_x_ip{
-        x_address->x_address ^ stun::MAGIC_COOKIE, 
-        static_cast<uint16_t>(x_address->x_port ^ stun::MAGIC_COOKIE)
-    };
-    std::cout << "second_x_ip: " << inet_ntoa({second_x_ip.net_address}) << ":" << ntohs(second_x_ip.net_port) << std::endl;
-    if (second_x_ip == first_x_ip){ /* address dependent mapping */ return 1;}
-
-
-
-
+    // test 2
     stunMessage request_msg2(stun::messagemethod::BINDING | stun::messagetype::REQUEST);
     auto response2 = c.asyncRequest(
-        server_other_ip,
+        ipv4info{server_other_ip.net_address, htons(3478)},
         request_msg2
     );
-    auto& [ip2, responce_msg2] = response2.get_return_value();
 
-    if (responce_msg2.empty()){/* unsupported */ return 0;}
+    auto& [ip2, responce_msg2] = response2.get_return_value();
+    if (responce_msg2.empty()){/* unsupported */ return mapping_type::unsupported;}
     std::cout << "response from: " << inet_ntoa({ip2.net_address}) << ":" << ntohs(ip2.net_port) << std::endl;
 
-    auto x_address2 = responce_msg2.find<ipv4_xor_mappedAddress>();
-    if (x_address2 == nullptr){/* unsupported */ return 0;}
-
-    ipv4info third_x_ip{
-        x_address2->x_address ^ stun::MAGIC_COOKIE, 
-        static_cast<uint16_t>(x_address2->x_port ^ stun::MAGIC_COOKIE)
+    auto second_x_address = responce_msg2.find<ipv4_xor_mappedAddress>();
+    if (second_x_address == nullptr){/* unsupported */ return mapping_type::unsupported;}
+    ipv4info second_x_ip{
+        second_x_address->x_address ^ stun::MAGIC_COOKIE, 
+        static_cast<uint16_t>(second_x_address->x_port ^ stun::MAGIC_COOKIE)
     };
+    std::cout << "second_x_ip: " << inet_ntoa({second_x_ip.net_address}) << ":" << ntohs(second_x_ip.net_port) << std::endl;
 
-    std::cout << "third_x_ip: " << inet_ntoa({third_x_ip.net_address}) << ":" << ntohs(third_x_ip.net_port) << std::endl;
-
-    if (third_x_ip == first_x_ip){
-        // address and port dependent mapping
-        return 2;
+    if (second_x_ip == first_x_ip){
+        // endpoint independent mapping
+        return mapping_type::endpoint_independent_mapping;
     }
 
-    // address and port dependent mapping
 
-    return 3;
+
+
+
+    // test 3
+    stunMessage request_msg3(stun::messagemethod::BINDING | stun::messagetype::REQUEST);
+    auto response3 = c.asyncRequest(
+        server_other_ip,
+        request_msg3
+    );
+    auto& [ip3, responce_msg3] = response3.get_return_value();
+
+    if (responce_msg3.empty()){/* unsupported */ return mapping_type::unsupported;}
+    std::cout << "response from: " << inet_ntoa({ip3.net_address}) << ":" << ntohs(ip3.net_port) << std::endl;
+
+    auto third_x_address = responce_msg3.find<ipv4_xor_mappedAddress>();
+    if (third_x_address == nullptr){/* unsupported */ return mapping_type::unsupported;}
+    ipv4info third_x_ip{
+        third_x_address->x_address ^ stun::MAGIC_COOKIE, 
+        static_cast<uint16_t>(third_x_address->x_port ^ stun::MAGIC_COOKIE)
+    };
+    std::cout << "third_x_ip: " << inet_ntoa({third_x_ip.net_address}) << ":" << ntohs(third_x_ip.net_port) << std::endl;
+
+    if (third_x_ip == second_x_ip){
+        // address dependent mapping
+        return mapping_type::address_dependent_mapping;
+    } else {
+        // address and port dependent mapping
+        return mapping_type::address_and_port_dependent_mapping;
+    }
+
 }
 
-
-int test3(clientImpl& c, ipv4info& serverip){
-
+filtering_type filtering_test(clientImpl& c, ipv4info& server_ip){
+    // test 2
     stunMessage request_msg(stun::messagemethod::BINDING | stun::messagetype::REQUEST);
     request_msg.emplace<changeRequest>(stun::CHANGE_IP_FLAG | stun::CHANGE_PORT_FLAG);
 
-
-    auto response = c.asyncRequest(serverip, request_msg, 3);
+    auto response = c.asyncRequest(server_ip, request_msg, 2);
     auto& [ip, responce_msg] = response.get_return_value();
     if (!responce_msg.empty()){
         std::cout << "response from: " << inet_ntoa({ip.net_address}) << ":" << ntohs(ip.net_port) << std::endl;
         // endpoint independent filtering
-        return 0;
+        return filtering_type::endpoint_independent_filtering;
     }
-    
 
 
-
+    // test 3
     stunMessage request_msg2(stun::messagemethod::BINDING | stun::messagetype::REQUEST);
     request_msg2.emplace<changeRequest>(stun::CHANGE_PORT_FLAG);
 
-    auto response2 = c.asyncRequest(serverip, request_msg2, 3);
+    auto response2 = c.asyncRequest(server_ip, request_msg2, 2);
     auto& [ip2, responce_msg2] = response2.get_return_value();
     if (!responce_msg2.empty()){
         std::cout << "response from: " << inet_ntoa({ip2.net_address}) << ":" << ntohs(ip2.net_port) << std::endl;
         // address dependent filtering
-        return 1;
+        return filtering_type::address_dependent_filtering;
+    } else {
+        // address and port dependent filtering
+        return filtering_type::address_and_port_dependent_filtering;
     }
-    
-    // address and port dependent filtering
-    return 2;
+
 }
+
 
 void nat_test(){
     clientImpl c{};
@@ -302,49 +317,37 @@ void nat_test(){
     ipv4info serverip{"195.208.107.138", 3478};
 
 
-
-    auto [nat_type, x_ip, server_other_ip] = test1(c, serverip);
-    switch (nat_type){
-        case 0:
+    switch (maping_test(c, serverip)){
+        case mapping_type::unsupported:
             std::cout << "unsupported" << std::endl;
-            return;
-        case 1:
+            break;
+        case mapping_type::endpoint_independent_mapping_no_nat:
             std::cout << "endpoint independent mapping, no NAT" << std::endl;
-            return;
-    }
-
-
-
-    auto mapping_type = test2(c, server_other_ip, x_ip);
-    switch (mapping_type){
-        case 0:
-            std::cout << "unsupported" << std::endl;
-            return;
-        case 1:
+            break;
+        case mapping_type::endpoint_independent_mapping:
+            std::cout << "endpoint independent mapping" << std::endl;
+            break;
+        case mapping_type::address_dependent_mapping:
             std::cout << "address dependent mapping" << std::endl;
             break;
-        case 2:
-            std::cout << "address and port dependent mapping" << std::endl;
-            break;
-        case 3:
+        case mapping_type::address_and_port_dependent_mapping:
             std::cout << "address and port dependent mapping" << std::endl;
             break;
     }
 
 
-
-    auto flitering_type = test3(c, serverip);
-    switch (flitering_type){
-        case 0:
+    switch (filtering_test(c, serverip)){
+        case filtering_type::endpoint_independent_filtering:
             std::cout << "endpoint independent filtering" << std::endl;
             break;
-        case 1:
+        case filtering_type::address_dependent_filtering:
             std::cout << "address dependent filtering" << std::endl;
             break;
-        case 2:
+        case filtering_type::address_and_port_dependent_filtering:
             std::cout << "address and port dependent filtering" << std::endl;
             break;
     }
+
 }
 
 

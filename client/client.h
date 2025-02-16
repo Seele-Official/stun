@@ -83,9 +83,11 @@ public:
 
 template <typename Derived, typename ipinfo_t>
 class client{
-private:
+public:    
     using responce_t = std::tuple<ipinfo_t, stunMessage>;
     using request_t = std::tuple<ipinfo_t, stunMessage_view>;
+private:
+
 
     Timer timer;
     std::jthread listener_thread;
