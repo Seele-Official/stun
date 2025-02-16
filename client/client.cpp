@@ -1,167 +1,106 @@
-#include "async.h"
-#include "stun.h"
-#include "threadpool.h"
-#include <atomic>
 #include <cstdint>
-#include <functional>
-#include <iostream>
-#include <map>
-#include <memory>
-#include <sys/types.h>
-
-class TransactionManager{
-public:
-    struct registerAwaiter{
-        transactionID_t transactionID;
-        stunMessage response;
-        bool await_ready() const noexcept { return false; }
-        void await_suspend(std::coroutine_handle<> handle) noexcept {
-            get_instance().registerTransaction(handle, this);
-        }
-        stunMessage& await_resume(){
-            return response;
-        }
-        registerAwaiter(transactionID_t transactionID): transactionID{transactionID} {}
-    };
+#include <sys/socket.h>
+#include <netinet/in.h> 
+#include <ifaddrs.h>
+#include <arpa/inet.h>
+#include "client.h"
+#include "stun.h"
 
 
+struct ipv4info{
+    uint32_t address;
+    uint16_t port;
 
-private:
-
-    struct transaction_t{
-        std::coroutine_handle<> handle;
-        registerAwaiter* awaiter;
-
-        transaction_t(std::coroutine_handle<> handle,  registerAwaiter* awaiter): handle{handle}, awaiter{awaiter} {}
-    };
-
-    std::map<transactionID_t, transaction_t> transactions;
-    std::mutex m;
-public:
-    void registerTransaction(std::coroutine_handle<> handle, registerAwaiter* awaiter){
-        std::lock_guard lock{m};
-
-        transactions.emplace(std::piecewise_construct, 
-            std::forward_as_tuple(awaiter->transactionID), 
-            std::forward_as_tuple(handle, awaiter));
-    }
-
-    void onResponse(stunMessage&& response){
-        std::lock_guard lock{m};
-
-        auto it = transactions.find(response.getHeader()->transactionID);
-        if (it != transactions.end()){
-            it->second.awaiter->response = std::move(response);
-            it->second.handle.resume();
-            transactions.erase(it);
-        }
-
-    }
-
-    void onTimeout(transactionID_t transactionID){
-        std::lock_guard lock{m};
-
-        auto it = transactions.find(transactionID);
-        if (it != transactions.end()){
-            it->second.handle.resume();
-            transactions.erase(it);
-        }
-    }
-
-
-
-    static TransactionManager& get_instance(){
-        static TransactionManager instance;
-        return instance;
-    }
-
+    explicit ipv4info(uint32_t address, uint16_t port) : address{address}, port{port} {}
 };
 
-
-template <typename Derived>
-class client{
-private:
-    Timer timer;
-
-    std::jthread listener_thread;
-
-    void listener(std::stop_token st){
-        while(!st.stop_requested()){
-            auto response = receive();
-            TransactionManager::get_instance().onResponse(std::move(response));
-        }
-    }
-
-    void send(stunMessage_view msg){
-        // send
-    }
-
-    stunMessage receive(){
-        // receive
-        return stunMessage{};
-    }
-
-
-    
-
-
-public:
-    explicit client() : listener_thread{&client::listener, this} , timer{} {}
-
-    ~client(){
-        listener_thread.request_stop();
-    }
-
-    lazy_task<stunMessage> asyncRequest(stunMessage_view msg){
-        struct State {
-            uint64_t id{};
-            uint64_t times{};
-            uint64_t expiry{};
-            stunMessage_view msg;
-            transactionID_t transactionID;
-            std::function<void()> callback;
-            State(stunMessage_view msg): msg{msg}, transactionID{msg.getHeader()->transactionID} {}
-        };
-    
-
-        State state{msg};
-    
-        state.callback = [&state, this]() { 
-            if (state.times < 7) {
-                static_cast<Derived*>(this)->send(state.msg);
-
-                state.times++;
-                state.expiry = state.expiry * 2 + 500;
-                state.id = timer.schedule(state.callback, state.expiry);
-                std::cout << "retry " << state.times << " id: " << state.id << std::endl;
-            } else {
-                TransactionManager::get_instance().onTimeout(state.transactionID);
-            }
-        };
-    
-        state.id = timer.schedule(state.callback, 0);
-    
-        auto response = co_await TransactionManager::registerAwaiter{msg.getHeader()->transactionID};
-    
-        timer.cancel(state.id);
-
-        co_return std::move(response);
-    }
-
-
-};
 
 class clientImpl : public client<clientImpl>{
 private:
     friend class client<clientImpl>;
-    void send(stunMessage_view msg){
-        std::cout << "send" << std::endl;
+
+    int socketfd;
+    sockaddr_in remoteAddr;
+
+    uint32_t myIP; 
+    uint16_t myPort;
+    // void send(stunMessage_view msg){
+    //     sendto(socketfd, msg.data(), msg.size(), 0, (sockaddr*)&remoteAddr, sizeof(remoteAddr));
+    // }
+
+
+    // stunMessage receive(){
+    //     static constexpr size_t buffer_size = 1024;
+    //     static uint8_t buffer[buffer_size];
+
+    //     sockaddr_in from{};
+    //     socklen_t fromlen = sizeof(from);
+    //     auto recvlen = recvfrom(socketfd, buffer, buffer_size, 0, (sockaddr*)&from, &fromlen);
+
+    //     if (recvlen == -1){
+    //         return stunMessage{};
+    //     }
+
+    //     return stunMessage{buffer, static_cast<size_t>(recvlen)};
+
+    // }
+
+    static uint32_t queryMyIP(){
+        ifaddrs *ifAddrStruct = nullptr;
+        if (getifaddrs(&ifAddrStruct) == -1) {
+            perror("getifaddrs");
+            return -1;
+        }
+
+        for (ifaddrs *it = ifAddrStruct; it != nullptr; it = it->ifa_next) {
+            if (it->ifa_addr == nullptr) continue;
+
+            if (it->ifa_addr->sa_family == AF_INET && strcmp(it->ifa_name, "eth2") == 0) {
+                return ((sockaddr_in*)it->ifa_addr)->sin_addr.s_addr;
+            }
+        }
+        if (ifAddrStruct != nullptr) freeifaddrs(ifAddrStruct);
+        return -1;
     }
-    void receive(){
-        std::cout << "receive" << std::endl;
+    static uint16_t randomPort(){
+        return htons(49152 + rand() % 16383);
     }
+
 public:
-    explicit clientImpl() {}
+    explicit clientImpl(std::string_view ip, uint16_t port) : remoteAddr{}, myIP{queryMyIP()}, myPort{randomPort()} {
+
+
+        socketfd = socket(AF_INET, SOCK_DGRAM, 0);
+        if (socketfd == -1){
+            //
+        }
+        
+        sockaddr_in local{};
+        local.sin_family = AF_INET;
+        local.sin_port = myPort;
+        local.sin_addr.s_addr = myIP;
+
+        if (bind(socketfd, (sockaddr*)&local, sizeof(local)) == -1){
+            //
+        }
+        
+        remoteAddr.sin_family = AF_INET;
+        remoteAddr.sin_port = htons(port);
+        remoteAddr.sin_addr.s_addr = inet_addr(ip.data());
+    }
+
+    ~clientImpl(){
+        close(socketfd);
+    }
+
+
+    uint32_t getMyIP() const {
+        return myIP;
+    }
+
+    uint16_t getMyPort() const {
+        return myPort;
+    }
 
 };
 
@@ -172,16 +111,59 @@ int main(){
     stunMessage msg(stun::messagemethod::BINDING | stun::messagetype::REQUEST);
 
 
-    clientImpl c{};
+    clientImpl c{"195.208.107.138", 3478};
+
+    std::cout << "my ip: " << inet_ntoa({c.getMyIP()}) << ":" << ntohs(c.getMyPort()) << std::endl;
 
     auto response = c.asyncRequest(msg);
 
     if (response.get_return_value().empty()){
         std::cout << "timeout" << std::endl;
     } else {
-        std::cout << "response received" << std::endl;
+        for (auto& attr : response.get_return_value().getAttributes()){
+            switch (attr->type){
+                case stun::attribute::MAPPED_ADDRESS:
+                    {
+                        auto mappedAddress = attr->as<ipv4_mappedAddress>();
+                        std::cout << "MAPPED_ADDRESS: " << inet_ntoa({mappedAddress->address}) << ":" << ntohs(mappedAddress->port) << std::endl;
+                    }
+                    break;
+                case stun::attribute::XOR_MAPPED_ADDRESS:
+                    {
+                        auto mappedAddress = attr->as<ipv4_xor_mappedAddress>();
+                        std::cout << "XOR_MAPPED_ADDRESS: " 
+                            << inet_ntoa({mappedAddress->x_address ^ stun::MAGIC_COOKIE})
+                            << ":" 
+                            << ntohs(mappedAddress->x_port ^ stun::MAGIC_COOKIE) << std::endl;
+                    }
+                    break;
+                case stun::attribute::RESPONSE_ORIGIN:
+                    {
+                        auto responseOrigin = attr->as<ipv4_responseOrigin>();
+                        std::cout << "RESPONSE_ORIGIN: " << inet_ntoa({responseOrigin->address}) << ":" << ntohs(responseOrigin->port) << std::endl;
+                    }
+                    break;
+                case stun::attribute::OTHER_ADDRESS:
+                    {
+                        auto otherAddress = attr->as<ipv4_otherAddress>();
+                        std::cout << "OTHER_ADDRESS: " << inet_ntoa({otherAddress->address}) << ":" << ntohs(otherAddress->port) << std::endl;
+                    }
+                    break;
+                case stun::attribute::SOFTWARE:
+                    {
+                        std::cout << "SOFTWARE: " << attr->value << std::endl;
+                    }
+                    break;
+                default:
+                    {
+                        std::cout << "unknown attribute" << std::endl;
+                    }
+
+            
+            }
+        }
+
     }
     return 0;
 }
-
 

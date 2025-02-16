@@ -1,4 +1,5 @@
 #pragma once
+#include <atomic>
 #include <chrono>
 #include <concepts>
 #include <coroutine>
@@ -195,6 +196,7 @@ public:
         static uint64_t id = 0;
         std::lock_guard lock{m};
         tasks.emplace(id, std::chrono::steady_clock::now() + std::chrono::milliseconds(delay), callback);
+        std::atomic_thread_fence(std::memory_order_release);
         cv.notify_one();
         return id++;
     }

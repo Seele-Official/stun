@@ -10,6 +10,7 @@
           "stopAtEntry": false,
           "cwd": "${workspaceFolder}",
           "MIMode": "gdb",
+          // "externalConsole": true,
           // "setupCommands": [
           //   {
           //     "description": "启用打印 Pretty",

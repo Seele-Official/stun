@@ -2,6 +2,7 @@
 #include <cstdint>
 #include <cstddef>
 #include <cstring>
+#include <fstream>
 #include <type_traits>
 #include <vector>
 #if BYTE_ORDER == BIG_ENDIAN
@@ -72,24 +73,11 @@ namespace stun {
         constexpr uint16_t BINDING = my_htons(0x0001);
     }
 
-   
-
-    
-
-
     constexpr uint32_t MAGIC_COOKIE = my_htonl(0x2112A442);
 
 }
 
-
-
-struct stunAttribute {
-    uint16_t type;
-    uint16_t length;
-    uint8_t value[0];
-};
-
-
+#include "stunAttribute.h"
 
 
 struct stunMessage_view {
@@ -111,9 +99,14 @@ public:
 
     explicit stunMessage_view(stunHeader* header, std::vector<stunAttribute*> attributes) : header(header), attributes(attributes) {} 
 
-    const stunHeader* getHeader() const {
-        return header;
+    // const stunHeader* getHeader() const {
+    //     return header;
+    // }
+
+    const transactionID_t& getTransactionID() const {
+        return header->transactionID;
     }
+
 
     const std::vector<stunAttribute*>& getAttributes() const {
         return attributes;
@@ -121,6 +114,14 @@ public:
 
     const stunAttribute* operator[](size_t index) const {
         return attributes[index];
+    }
+
+    size_t size() const {
+        return my_ntohl(header->length) + sizeof(stunHeader);
+    }
+
+    const uint8_t* data() const {
+        return reinterpret_cast<const uint8_t*>(header);
     }
 
 };
@@ -151,23 +152,81 @@ public:
         this->header->type = type;
         this->header->length = 0;
         this->header->magicCookie = stun::MAGIC_COOKIE;
-        for (int i = 0; i < 12; i++) {
-            this->header->transactionID.data[i] = 0; // TODO: randomize
-        }
 
-
-
+        std::ifstream urandom("/dev/urandom", std::ios::in | std::ios::binary);
+        urandom.read(reinterpret_cast<char*>(this->header->transactionID.data), 12);
+        urandom.close();
     }
+
+    explicit stunMessage(const uint8_t* data, size_t size) : data{new uint8_t[size]}{
+        std::memcpy(this->data, data, size);
+        this->header = reinterpret_cast<stunHeader*>(this->data);
+        this->endptr = this->data + size;
+
+        uint8_t* ptr = this->data + sizeof(stunHeader);
+
+
+        while (ptr < this->endptr) {
+            stunAttribute* attribute = reinterpret_cast<stunAttribute*>(ptr);
+            attributes.emplace_back(attribute);
+
+            auto len = sizeof(stunAttribute) + my_ntohs(attribute->length);
+            if (len % 4 != 0) len += 4 - len % 4;
+            ptr += len;
+
+
+        }
+    }
+
+    explicit stunMessage(stunMessage& other) = delete;
+    explicit stunMessage(stunMessage&& other) : data{other.data}, header{other.header}, attributes{std::move(other.attributes)}, endptr{other.endptr} {
+        other.data = nullptr;
+        other.header = nullptr;
+        other.endptr = nullptr;
+    }
+
 
     ~stunMessage(){
         if (data) delete[] data;
     }
-    const stunHeader* getHeader() const {
-        return header;
+
+    auto operator=(stunMessage& other) -> stunMessage& = delete;
+    auto operator=(stunMessage&& other) -> stunMessage& {
+        if (data) delete[] data;
+        data = other.data;
+        header = other.header;
+        attributes = std::move(other.attributes);
+        endptr = other.endptr;
+
+        other.data = nullptr;
+        other.header = nullptr;
+        other.endptr = nullptr;
+
+        return *this;
     }
-    
+
+
+
+
+
+    // const stunHeader* getHeader() const {
+    //     return header;
+    // }
+
+    const transactionID_t& getTransactionID() const {
+        return header->transactionID;
+    }
+
+    const std::vector<stunAttribute*>& getAttributes() const {
+        return attributes;
+    }
+
     bool empty() const {
         return header == nullptr;
+    }
+
+    bool isValid() const {
+        return header->magicCookie == stun::MAGIC_COOKIE;
     }
 
     operator stunMessage_view() const {
@@ -176,8 +235,7 @@ public:
 
 
 
-    template<typename attribute_t>
-    requires std::is_base_of_v<stunAttribute, attribute_t> && (sizeof(attribute_t) % 4 == 0)
+    template<is_stunAttribute attribute_t>
     bool apppend(attribute_t* attribute){
         if (endptr + sizeof(attribute_t) > data + 548) {
             return false;
@@ -189,5 +247,15 @@ public:
         return true;
     }
 
+
+    template<is_stunAttribute attribute_t>
+    attribute_t* find(){
+        for (auto& attr : attributes){
+            if (attr->type == attribute_t::getid()){
+                return attr->as<attribute_t>();
+            }
+        }
+        return nullptr;
+    }
 
 };
