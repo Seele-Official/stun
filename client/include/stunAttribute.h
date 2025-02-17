@@ -1,5 +1,6 @@
 #pragma once
 #include "stun.h"
+#include <cstdint>
 
 namespace stun {
     namespace attribute {
@@ -26,8 +27,8 @@ namespace stun {
         constexpr uint16_t ALTERNATE_SERVER = my_htons(0x8023);
         constexpr uint16_t FINGERPRINT = my_htons(0x8028);
     }
-    constexpr uint8_t CHANGE_IP_FLAG = 0x04;
-    constexpr uint8_t CHANGE_PORT_FLAG = 0x02;
+    constexpr uint32_t CHANGE_IP_FLAG = my_htonl(0x04);
+    constexpr uint32_t CHANGE_PORT_FLAG = my_htonl(0x02);
 }
 struct stunAttribute;
 template <typename attribute_t>
@@ -37,6 +38,9 @@ struct stunAttribute {
     uint16_t type;
     uint16_t length;
     uint8_t value[0];
+
+    explicit stunAttribute(uint16_t type, uint16_t length) : type{type}, length{length} {}
+
 
     template<is_stunAttribute attribute_t>
     attribute_t* as(){
@@ -79,14 +83,43 @@ struct ipv4_otherAddress : public stunAttribute {
 };
 
 struct changeRequest : public stunAttribute {
-    uint8_t zero[3];
-    uint8_t flags;
+    uint32_t flags;
     constexpr static uint16_t getid(){ return stun::attribute::CHANGE_REQUEST;}
     
-    explicit changeRequest(uint8_t flags) : flags{flags} {}
+    explicit changeRequest(uint32_t flags) : 
+        flags{flags}, 
+        stunAttribute{stun::attribute::CHANGE_REQUEST, my_htons(sizeof(flags))} {}
 };
 
 struct softWare : public stunAttribute {
     char value[0];
     constexpr static uint16_t getid(){ return stun::attribute::SOFTWARE;}
+};
+
+
+struct fingerprint : public stunAttribute {
+    uint32_t crc32;
+    constexpr static uint16_t getid(){ return stun::attribute::FINGERPRINT;}
+    explicit fingerprint(uint32_t crc32) : 
+        crc32{crc32}, 
+        stunAttribute{stun::attribute::FINGERPRINT, my_htons(sizeof(crc32))} {}
+    static uint32_t crc32_bitwise(const uint8_t* data, size_t length) {
+        constexpr uint32_t CRC32_POLYNOMIAL = 0x04C11DB7;
+        constexpr uint32_t INIT_CRC = 0xFFFFFFFF;
+        constexpr uint32_t XOR_OUT = 0xFFFFFFFF;
+
+        uint32_t crc = INIT_CRC;
+    
+        for (size_t i = 0; i < length; i++) {
+            crc ^= (data[i] << 24);
+            for (int j = 0; j < 8; j++) {
+                if (crc & 0x80000000)
+                    crc = (crc << 1) ^ CRC32_POLYNOMIAL;
+                else
+                    crc <<= 1;
+            }
+        }
+        return crc ^ XOR_OUT;
+    }
+        
 };

@@ -4,24 +4,24 @@
 #include <cstddef>
 #include <cstdint>
 #include <functional>
-#include <iostream>
 #include <map>
+#include <optional>
 #include <tuple>
-#include <sys/types.h>
+
 
 template <typename ipinfo_t>
 class TransactionManager{
 public:
-    using responce_t = std::tuple<ipinfo_t, stunMessage>;
+    using transaction_responce = std::tuple<ipinfo_t, stunMessage>;
 
     struct registerAwaiter{
         transactionID_t transactionID;
-        responce_t response;
+        transaction_responce response;
         bool await_ready() const noexcept { return false; }
         void await_suspend(std::coroutine_handle<> handle) noexcept {
             get_instance().registerTransaction(handle, this);
         }
-        responce_t& await_resume(){
+        transaction_responce& await_resume(){
             return response;
         }
         registerAwaiter(transactionID_t id): transactionID{id} {}
@@ -49,7 +49,7 @@ public:
             std::forward_as_tuple(handle, awaiter));
     }
 
-    void onResponse(responce_t&& response){
+    void onResponse(transaction_responce&& response){
 
         std::lock_guard lock{m};
         auto it = transactions.find(std::get<1>(response).getTransactionID());
@@ -84,8 +84,9 @@ public:
 template <typename Derived, typename ipinfo_t>
 class client{
 public:    
-    using responce_t = std::tuple<ipinfo_t, stunMessage>;
-    using request_t = std::tuple<ipinfo_t, stunMessage_view>;
+    using request_t = std::tuple<ipinfo_t, size_t, const uint8_t*>;
+    using response_t = std::tuple<ipinfo_t, size_t, uint8_t*>;
+    using transaction_responce = std::tuple<ipinfo_t, stunMessage>;
 private:
 
 
@@ -94,33 +95,42 @@ private:
 
     void listener(std::stop_token st){
         while(!st.stop_requested()){
-            auto response = static_cast<Derived*>(this)->receive();
-            if (!std::get<1>(response).empty() && std::get<1>(response).isValid())
-                TransactionManager<ipinfo_t>::get_instance().onResponse(std::move(response));
+
+            auto [ipinfo, size, data] = static_cast<Derived*>(this)->receive();
+            // check validity
+            if (data == nullptr) continue;
+
+            if (stunMessage::isValid(data)){
+                TransactionManager<ipinfo_t>::get_instance().onResponse(transaction_responce{ipinfo, stunMessage{data}});
+            }
         }
     }
+
 
     void send(request_t request){
         // send
     }
 
-    responce_t receive(){
+    response_t receive(){
         // receive
-        return responce_t{ipinfo_t{}, stunMessage{}};
+        return response_t{ipinfo_t{}, stunMessage{}};
     }
 
-
-    
+protected:
+      void start_listener(){
+        listener_thread = std::jthread{&client::listener, this};
+    }  
 
 
 public:
-    explicit client() : listener_thread{&client::listener, this} , timer{} {}
+    explicit client() : timer{} {}
 
     ~client(){
         listener_thread.request_stop();
     }
 
-    lazy_task<responce_t> asyncRequest(const ipinfo_t& ip, stunMessage_view msg, size_t retry = 7){
+
+    lazy_task<transaction_responce> asyncRequest(const ipinfo_t& ip, stunMessage_view msg, size_t retry = 7){
         struct State {
             uint64_t id{};
             size_t times{};
@@ -131,7 +141,7 @@ public:
             size_t max_times;
             transactionID_t transactionID;
             std::function<void()> callback;
-            State(ipinfo_t ip, stunMessage_view msg, size_t retry): request{ip, msg}, transactionID{msg.getTransactionID()}, max_times{retry} {}
+            State(ipinfo_t ip, stunMessage_view msg, size_t retry): request{ip, msg.size(), msg.data()}, transactionID{msg.getTransactionID()}, max_times{retry} {}
         };
     
 
