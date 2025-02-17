@@ -69,11 +69,15 @@ public:
 
 };
 
+
+
+#define THREADPOOL threadpool<4>::get_instance()
+
 struct forward2threadpool{
     bool await_ready() { return false; }
 
     void await_suspend(std::coroutine_handle<> handle) {
-        threadpool<4>::get_instance().submit(handle);
+        THREADPOOL.submit(handle);
     }
 
     void await_resume() {}

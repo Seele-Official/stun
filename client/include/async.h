@@ -5,7 +5,6 @@
 #include <coroutine>
 #include <cstddef>
 #include <cstdint>
-#include <iostream>
 #include <set>
 #include <thread>
 #include <utility>
@@ -58,7 +57,7 @@ public:
 
     ~lazy_task(){
         while (!handle.done())
-            std::this_thread::sleep_for(std::chrono::milliseconds(100));
+            std::this_thread::yield();
 
         handle.destroy();
     }
@@ -67,9 +66,9 @@ public:
         return handle.done();
     }
 
-    return_t& get_return_value(size_t sleep_time = 100){
+    return_t& get_return_value(){
         while (!handle.done()){
-            std::this_thread::sleep_for(std::chrono::milliseconds(sleep_time));
+            std::this_thread::yield();
         }
         return handle.promise().value;
     }
@@ -111,7 +110,7 @@ public:
 
     ~lazy_task(){
         while (!handle.done())
-            std::this_thread::sleep_for(std::chrono::milliseconds(100));
+            std::this_thread::yield();
         handle.destroy();
     }
 
@@ -136,92 +135,3 @@ lazy_task<std::invoke_result_t<lambda_t, args_t...>> async(lambda_t lambda, args
     }
 }
 
-
-class Timer{
-private:
-    using callback_t = std::function<void()>;
-    
-    using time_point = std::chrono::steady_clock::time_point;
-    std::jthread thread;
-
-    std::condition_variable cv;
-    std::mutex m;
-
-    struct task{
-        uint64_t id;
-        time_point expirytime;
-        callback_t callback;
-
-        auto operator <(const task& other) const{
-            return expirytime < other.expirytime;
-        }
-
-        task(uint64_t id, time_point expirytime, callback_t callback): id{id}, expirytime{expirytime}, callback{callback}{}
-    };
-
-    std::set<task> tasks;
-
-
-    void worker(std::stop_token st){
-        while(!st.stop_requested()){
-            std::unique_lock lock{m};
-
-            if(tasks.empty()){
-                cv.wait(lock, [&]{
-                    return !tasks.empty() || st.stop_requested();
-                });
-                continue;
-            }
-
-            auto t = tasks.begin();
-            if (t->expirytime > std::chrono::steady_clock::now()){
-                cv.wait_until(lock, t->expirytime, [&]{
-                    return tasks.begin()->expirytime <= std::chrono::steady_clock::now() || st.stop_requested();
-                });
-
-                continue;
-            }
-
-            tasks.erase(t);
-            lock.unlock();
-
-            t->callback();
-
-
-        }
-    }
-
-public:
-    uint64_t schedule(callback_t callback, uint64_t delay){
-        static uint64_t id = 0;
-        std::lock_guard lock{m};
-        tasks.emplace(id, std::chrono::steady_clock::now() + std::chrono::milliseconds(delay), callback);
-        std::atomic_thread_fence(std::memory_order_release);
-        cv.notify_one();
-        return id++;
-    }
-
-    bool cancel(uint64_t id){
-        std::lock_guard lock{m};
-
-        auto it = std::find_if(tasks.begin(), tasks.end(), [&](const task& t){
-            return t.id == id;
-        });
-
-        if (it == tasks.end()){
-            return false;
-        }
-
-        tasks.erase(it);
-        return true;
-    }
-
-    explicit Timer() : thread{&Timer::worker, this} {}
-
-    ~Timer(){
-        thread.request_stop();
-        cv.notify_one();
-    }
-
-
-};
