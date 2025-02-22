@@ -108,7 +108,7 @@ uint16_t win_client::randomPort() {
 
 
 
-win_client::win_client(uint16_t myport) : myIP(queryMyIP()), myPort(myport) {
+win_client::win_client(uint32_t myIP, uint16_t myPort) : myIP(myIP), myPort(myPort) {
     if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0) {
         LOG.log("[ERROR] WSAStartup() failed\n");
         std::exit(1);

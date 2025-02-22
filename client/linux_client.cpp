@@ -63,7 +63,7 @@ uint16_t linux_client::randomPort() {
     return htons(random<uint16_t>(49152, 65535));
 }
 
-linux_client::linux_client(uint16_t myport) : myIP{queryMyIP()}, myPort{myport} {
+linux_client::linux_client(uint32_t myIP, uint16_t myPort) : myIP(myIP), myPort(myPort) {
     socketfd = socket(AF_INET, SOCK_DGRAM, 0);
     if (socketfd == -1) {
         LOG.log("[ERROR] socket() failed: {}\n", strerror(errno));
@@ -85,8 +85,4 @@ linux_client::linux_client(uint16_t myport) : myIP{queryMyIP()}, myPort{myport} 
 
     setsockopt(socketfd, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout));
     this->start_listener();
-}
-
-linux_client::~linux_client() {
-    close(socketfd);
 }

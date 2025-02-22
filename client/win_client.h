@@ -28,7 +28,7 @@ private:
     static uint16_t randomPort();
 
 public:
-    explicit win_client(uint16_t myport = randomPort());
+    explicit win_client(uint32_t myIP = queryMyIP(), uint16_t myPort = randomPort());
     ~win_client();
 
     inline uint32_t getMyIP() const { return myIP; }

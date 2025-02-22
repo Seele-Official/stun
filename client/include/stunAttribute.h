@@ -1,6 +1,5 @@
 #pragma once
 #include "stun.h"
-#include <array>
 #include <cstdint>
 
 namespace stun {
@@ -105,29 +104,6 @@ struct fingerPrint : public stunAttribute {
         crc32{crc32}, 
         stunAttribute{stun::attribute::FINGERPRINT, my_htons(sizeof(crc32))} {}
 
+    static uint32_t crc32_bitwise(const uint8_t* data, size_t len);
 
-    static constexpr std::array<uint32_t, 256> crc32_table() {
-        constexpr uint32_t poly = 0xEDB88320; // 反射多项式
-        std::array<uint32_t, 256> table{};
-        for (uint32_t i = 0; i < 256; ++i) {
-            uint32_t crc = i;
-            for (int j = 0; j < 8; ++j) {
-            crc = (crc >> 1) ^ ((crc & 1) ? poly : 0);
-            }
-            table[i] = crc;
-        }
-        return table;
-    }
-    
-    static uint32_t crc32_bitwise(const uint8_t* data, size_t len) {
-        
-        static constexpr auto CRC32_TABLE = crc32_table();
-
-        uint32_t crc = 0xFFFFFFFF;
-        for (size_t i = 0; i < len; ++i) {
-          crc = (crc >> 8) ^ CRC32_TABLE[(crc ^ data[i]) & 0xFF];
-        }
-        return crc ^ 0xFFFFFFFF;
-      }
-        
 };

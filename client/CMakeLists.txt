@@ -4,13 +4,13 @@ cmake_minimum_required(VERSION 3.15)
 # 项目名称和语言
 project(Client LANGUAGES CXX)
 
-# 设置 C++20 标准
-set(CMAKE_CXX_STANDARD 20)
-set(CMAKE_CXX_STANDARD_REQUIRED YES)
+# 设置 C++ 标准
+set(CMAKE_CXX_STANDARD 23)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -static-libstdc++ -static-libgcc -g")
 
 add_definitions(-DMY_BYTE_ORDER=MY_LITTLE_ENDIAN)
-
 
 # 设置 Debug 模式（可选）
 set(CMAKE_BUILD_TYPE "Debug")
@@ -29,8 +29,10 @@ endif()
 
 # 设置源文件
 set(SOURCES
+    "main.cpp"
     "nat_test.cpp"
     "./include/timer.cpp"
+    "./include/stun.cpp"
     ${PLATFORM_SOURCES}
 )
 
@@ -47,8 +49,6 @@ endif()
 
 target_include_directories(client PRIVATE include)
 
-# 可选：启用 C++20 特性标志
-# target_compile_features(MyCpp20Project PRIVATE cxx_std_20)
 
 # 如果有额外的库依赖，可以在这里添加链接指令
 # target_link_libraries(MyCpp20Project PRIVATE some_library)

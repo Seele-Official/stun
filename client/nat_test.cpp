@@ -1,187 +1,144 @@
-#include "stun.h"
+#include "nat_test.h"
+#include "stunAttribute.h"
+std::expected<uint8_t, std::string> maping_test(clientImpl& c, ipv4info& server_addr, ipv4info& server_altaddr, ipv4info& first_x_maddr){
 
-
-#if defined(_WIN32) || defined(_WIN64)
-#include "win_client.h"
-using clientImpl = win_client;
-#elif defined(__linux__)
-#include "linux_client.h"
-using clientImpl = linux_client;
-#endif
-
-
-enum class mapping_type{
-    unsupported,
-    endpoint_independent_mapping_no_nat,
-    endpoint_independent_mapping,
-    address_dependent_mapping,
-    address_and_port_dependent_mapping,
-};
-
-enum class filtering_type{
-    endpoint_independent_filtering,
-    address_dependent_filtering,
-    address_and_port_dependent_filtering
-};
-
-mapping_type maping_test(clientImpl& c, ipv4info& server_ip){
-    stunMessage request_msg(stun::messagemethod::BINDING | stun::messagetype::REQUEST);
-    stunMessage request_msg2(stun::messagemethod::BINDING | stun::messagetype::REQUEST);
-    stunMessage request_msg3(stun::messagemethod::BINDING | stun::messagetype::REQUEST);
+    stunMessage ipmaping_test_msg(stun::messagemethod::BINDING | stun::messagetype::REQUEST);
     
-    // test 1
-    auto response = c.asyncRequest(server_ip, request_msg);
-    auto& [ip, responce_msg] = response.get_return_value();
-    if (responce_msg.empty()){ /* unsupported */ return mapping_type::unsupported;}
-
-
-    auto x_address = responce_msg.find<ipv4_xor_mappedAddress>();
-    auto other_address = responce_msg.find<ipv4_otherAddress>();
-    if (other_address == nullptr || x_address == nullptr){ /* unsupported */ return mapping_type::unsupported;}
-
-    ipv4info first_x_ip{
-        x_address->x_address ^ stun::MAGIC_COOKIE, 
-        static_cast<uint16_t>(x_address->x_port ^ stun::MAGIC_COOKIE)
-    }, server_other_ip{
-        other_address->address,
-        other_address->port
-    };
+    auto res = c.asyncRequest(
+        ipv4info{
+            server_altaddr.net_address,
+            server_addr.net_port
+        }, ipmaping_test_msg, 2)
+        .get_return_rvalue();
     
-
-    if (first_x_ip == c.getMyInfo()){
-        // endpoint independent mapping, no NAT
-        return mapping_type::endpoint_independent_mapping_no_nat;
-    }
-
-
-    // test 2
-    
-    auto response2 = c.asyncRequest(
-        ipv4info{server_other_ip.net_address, server_ip.net_port},
-        request_msg2
-    );
-
-    auto& [ip2, responce_msg2] = response2.get_return_value();
-    if (responce_msg2.empty()){/* unsupported */ return mapping_type::unsupported;}
-
-    auto second_x_address = responce_msg2.find<ipv4_xor_mappedAddress>();
-    if (second_x_address == nullptr){/* unsupported */ return mapping_type::unsupported;}
-    ipv4info second_x_ip{
-        second_x_address->x_address ^ stun::MAGIC_COOKIE, 
-        static_cast<uint16_t>(second_x_address->x_port ^ stun::MAGIC_COOKIE)
-    };
-
-    if (second_x_ip == first_x_ip){
-        // endpoint independent mapping
-        return mapping_type::endpoint_independent_mapping;
+    if (!res.has_value()){
+        return std::unexpected(res.error());
     }
 
 
 
+    auto x_addr = std::get<1>(res.value()).find<ipv4_xor_mappedAddress>();
+    if (x_addr == nullptr){
+        return std::unexpected("server has undefined behavior");
+    }
 
-
-    // test 3
-    auto response3 = c.asyncRequest(
-        server_other_ip,
-        request_msg3
-    );
-    auto& [ip3, responce_msg3] = response3.get_return_value();
-
-    if (responce_msg3.empty()){/* unsupported */ return mapping_type::unsupported;}
-
-    auto third_x_address = responce_msg3.find<ipv4_xor_mappedAddress>();
-    if (third_x_address == nullptr){/* unsupported */ return mapping_type::unsupported;}
-    ipv4info third_x_ip{
-        third_x_address->x_address ^ stun::MAGIC_COOKIE, 
-        static_cast<uint16_t>(third_x_address->x_port ^ stun::MAGIC_COOKIE)
+    ipv4info second_x_maddr{
+        x_addr->x_address ^ stun::MAGIC_COOKIE, 
+        static_cast<uint16_t>(x_addr->x_port ^ stun::MAGIC_COOKIE)
     };
 
-    if (third_x_ip == second_x_ip){
-        // address dependent mapping
-        return mapping_type::address_dependent_mapping;
+    if (first_x_maddr == second_x_maddr){
+        return endpoint_independent_mapping;
+    }
+
+
+    stunMessage portmaping_test_msg(stun::messagemethod::BINDING | stun::messagetype::REQUEST);
+    auto res2 = c.asyncRequest(
+        ipv4info{
+            server_altaddr.net_address,
+            server_altaddr.net_port
+        }, portmaping_test_msg, 2)
+        .get_return_rvalue();
+
+    if (!res2.has_value()){
+        return std::unexpected(res2.error());
+    }
+
+    auto x_addr2 = std::get<1>(res2.value()).find<ipv4_xor_mappedAddress>();
+    if (x_addr2 == nullptr){
+        return std::unexpected("server has undefined behavior");
+    }
+
+    ipv4info third_x_maddr{
+        x_addr2->x_address ^ stun::MAGIC_COOKIE, 
+        static_cast<uint16_t>(x_addr2->x_port ^ stun::MAGIC_COOKIE)
+    };
+
+    return first_x_maddr == third_x_maddr ? address_dependent_mapping : address_and_port_dependent_mapping;
+
+}
+
+uint8_t filtering_test(clientImpl& c, ipv4info& server_addr){
+
+    stunMessage ipfiltering_test_msg(stun::messagemethod::BINDING | stun::messagetype::REQUEST);
+    
+    ipfiltering_test_msg.emplace<changeRequest>(stun::CHANGE_IP_FLAG | stun::CHANGE_PORT_FLAG);
+
+    if(c.asyncRequest(server_addr, ipfiltering_test_msg, 2)
+        .get_return_lvalue()
+        .has_value()){
+        return endpoint_independent_filtering;
+    }
+
+    stunMessage portfiltering_test_msg(stun::messagemethod::BINDING | stun::messagetype::REQUEST);
+    portfiltering_test_msg.emplace<changeRequest>(stun::CHANGE_PORT_FLAG);
+
+    return c.asyncRequest(
+        ipv4info{
+            server_addr.net_address,
+            server_addr.net_port
+        }, portfiltering_test_msg, 2)
+        .get_return_lvalue()
+        .has_value() ? 
+        address_dependent_filtering : address_and_port_dependent_filtering;
+}
+
+std::expected<nat_type, std::string> nat_test(clientImpl &c, ipv4info server_addr){
+
+    stunMessage udp_test_msg(stun::messagemethod::BINDING | stun::messagetype::REQUEST);
+
+    auto res = c.asyncRequest(server_addr, udp_test_msg, 2)
+                    .get_return_rvalue();
+
+    if (!res.has_value()) {
+        return std::unexpected(res.error());
+    }
+
+
+
+    auto& [ipinfo, responce_msg] = res.value();    
+    auto x_addr = responce_msg.find<ipv4_xor_mappedAddress>();
+    auto otheraddr = responce_msg.find<ipv4_otherAddress>();
+    if (otheraddr == nullptr || x_addr == nullptr){
+        return std::unexpected("server does not support STUN");
+    }
+
+    ipv4info first_x_maddr{
+        x_addr->x_address ^ stun::MAGIC_COOKIE, 
+        static_cast<uint16_t>(x_addr->x_port ^ stun::MAGIC_COOKIE)
+    }, server_altaddr{
+        otheraddr->address,
+        otheraddr->port
+    };
+    
+    if (server_addr.net_address == server_altaddr.net_address || server_addr.net_port == server_altaddr.net_port){
+        return std::unexpected("server has undefined behavior");
+    }
+
+
+    if (first_x_maddr == c.getMyInfo()){
+        return nat_type{
+            filtering_test(c, server_addr),
+            no_nat_mapping
+        };
+
     } else {
-        // address and port dependent mapping
-        return mapping_type::address_and_port_dependent_mapping;
-    }
+        auto filtering = filtering_test(c, server_addr);
+        auto res = maping_test(c, server_addr, server_altaddr, first_x_maddr);
+        if (!res.has_value()){
+            return std::unexpected(res.error());
+        }
 
-}
-
-filtering_type filtering_test(clientImpl& c, ipv4info& server_ip){
-    // test 2
-    stunMessage request_msg(stun::messagemethod::BINDING | stun::messagetype::REQUEST);
-    request_msg.emplace<changeRequest>(stun::CHANGE_IP_FLAG | stun::CHANGE_PORT_FLAG);
-
-    auto response = c.asyncRequest(server_ip, request_msg, 2);
-    auto& [ip, responce_msg] = response.get_return_value();
-    if (!responce_msg.empty()){
-        // endpoint independent filtering
-        return filtering_type::endpoint_independent_filtering;
+        auto mapping = res.value();
+        
+        return nat_type{
+            filtering,
+            mapping
+        };
     }
 
 
-    // test 3
-    stunMessage request_msg2(stun::messagemethod::BINDING | stun::messagetype::REQUEST);
-    request_msg2.emplace<changeRequest>(stun::CHANGE_PORT_FLAG);
-
-    auto response2 = c.asyncRequest(server_ip, request_msg2, 2);
-    auto& [ip2, responce_msg2] = response2.get_return_value();
-    if (!responce_msg2.empty()){
-        // address dependent filtering
-        return filtering_type::address_dependent_filtering;
-    } else {
-        // address and port dependent filtering
-        return filtering_type::address_and_port_dependent_filtering;
-    }
 
 }
 
 
-void nat_test(){
-    clientImpl c{};
-    std::cout << "my ip: " << my_inet_ntoa(c.getMyIP()) << ":" << my_ntohs(c.getMyPort()) << std::endl;
-
-    ipv4info serverip{"3.122.159.108", 3478};
-
-
-    switch (maping_test(c, serverip)){
-        case mapping_type::unsupported:
-            std::cout << "unsupported" << std::endl;
-            break;
-        case mapping_type::endpoint_independent_mapping_no_nat:
-            std::cout << "endpoint independent mapping, no NAT" << std::endl;
-            break;
-        case mapping_type::endpoint_independent_mapping:
-            std::cout << "endpoint independent mapping" << std::endl;
-            break;
-        case mapping_type::address_dependent_mapping:
-            std::cout << "address dependent mapping" << std::endl;
-            break;
-        case mapping_type::address_and_port_dependent_mapping:
-            std::cout << "address and port dependent mapping" << std::endl;
-            break;
-    }
-
-
-    switch (filtering_test(c, serverip)){
-        case filtering_type::endpoint_independent_filtering:
-            std::cout << "endpoint independent filtering" << std::endl;
-            break;
-        case filtering_type::address_dependent_filtering:
-            std::cout << "address dependent filtering" << std::endl;
-            break;
-        case filtering_type::address_and_port_dependent_filtering:
-            std::cout << "address and port dependent filtering" << std::endl;
-            break;
-    }
-
-}
-
-
-
-int main(){
-    LOG.set_enable(true);
-    LOG.set_output_file("nat_test.log");
-    nat_test();
-
-    return 0;
-}

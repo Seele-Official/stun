@@ -66,11 +66,18 @@ public:
         return handle.done();
     }
 
-    return_t& get_return_value(){
+    return_t& get_return_lvalue(){
         while (!handle.done()){
             std::this_thread::yield();
         }
         return handle.promise().value;
+    }
+
+    return_t&& get_return_rvalue(){
+        while (!handle.done()){
+            std::this_thread::yield();
+        }
+        return std::move(handle.promise().value);
     }
 
 };

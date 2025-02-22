@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstdint>
 #include <cstring>
 #include <sys/types.h>
 #include <sys/socket.h>
@@ -22,8 +23,10 @@ private:
 
     
 public:
-    explicit linux_client(uint16_t myport = randomPort());
-    ~linux_client();
+    explicit linux_client(uint32_t myIP = queryMyIP(), uint16_t myPort = randomPort());
+    inline ~linux_client() {
+        close(socketfd);
+    }
 
     static uint32_t queryMyIP();
     static uint16_t randomPort();

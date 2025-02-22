@@ -5,25 +5,23 @@
 #include "timer.h"
 #include <cstddef>
 #include <cstdint>
-#include <functional>
 #include <map>
-#include <optional>
 #include <tuple>
-
-
+#include <expected>
 template <typename ipinfo_t>
 class TransactionManager{
 public:
-    using transaction_responce = std::tuple<ipinfo_t, stunMessage>;
+    using transaction_res_t = std::tuple<ipinfo_t, stunMessage>;
+    using expected_res_t = std::expected<transaction_res_t, std::string>;
 
     struct registerAwaiter{
         transactionID_t transactionID;
-        transaction_responce response;
+        expected_res_t response;
         bool await_ready() const noexcept { return false; }
         void await_suspend(std::coroutine_handle<> handle) noexcept {
             get_instance().registerTransaction(handle, this);
         }
-        transaction_responce& await_resume(){
+        expected_res_t& await_resume(){
             return response;
         }
         registerAwaiter(transactionID_t id): transactionID{id} {}
@@ -51,7 +49,7 @@ public:
             std::forward_as_tuple(handle, awaiter));
     }
 
-    void onResponse(transaction_responce&& response){
+    void onResponse(transaction_res_t&& response){
         std::lock_guard lock{m};
         auto it = transactions.find(std::get<1>(response).getTransactionID());
         if (it != transactions.end()){
@@ -67,6 +65,7 @@ public:
 
         auto it = transactions.find(transactionID);
         if (it != transactions.end()){
+            it->second.awaiter->response = std::unexpected("Timeout");
             THREADPOOL.submit(it->second.handle);
             transactions.erase(it);
         }
@@ -87,7 +86,8 @@ class client{
 public:    
     using request_t = std::tuple<ipinfo_t, size_t, const uint8_t*>;
     using response_t = std::tuple<ipinfo_t, size_t, uint8_t*>;
-    using transaction_responce = std::tuple<ipinfo_t, stunMessage>;
+    using transaction_res_t = std::tuple<ipinfo_t, stunMessage>;
+    using expected_res_t = std::expected<transaction_res_t, std::string>;
 private:
 
 
@@ -101,7 +101,7 @@ private:
             // check validity
             if (data != nullptr && stunMessage::isValid(data)){
                 TransactionManager<ipinfo_t>::get_instance().
-                    onResponse(transaction_responce{ipinfo, stunMessage{data}});
+                    onResponse(transaction_res_t{ipinfo, stunMessage{data}});
             }
         }
     }
@@ -121,7 +121,7 @@ private:
         request_t request{ip, msg.size(), msg.data()};
         for (size_t i = 0; i < retry; i++){
             static_cast<Derived*>(this)->send(request);
-            delay = delay*2 + 50;
+            delay = delay*2 + 500;
             co_await forward2Timer{delay};
         }
         TransactionManager<ipinfo_t>::get_instance().onTimeout(msg.getTransactionID());
@@ -145,7 +145,7 @@ public:
     }
 
 
-    lazy_task<transaction_responce> asyncRequest(const ipinfo_t& ip, stunMessage_view msg, size_t retry = 7){
+    lazy_task<expected_res_t> asyncRequest(const ipinfo_t& ip, stunMessage_view msg, size_t retry = 7){
 
 
         auto delay = request(ip, msg, retry);

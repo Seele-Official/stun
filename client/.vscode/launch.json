@@ -5,7 +5,7 @@
           "name": "调试 C++ (GDB)",
           "type": "cppdbg",
           "request": "launch",
-          "program": "${workspaceRoot}/build/Client",
+          "program": "${workspaceRoot}/build/client",
           "args": [],
           "stopAtEntry": false,
           "cwd": "${workspaceFolder}",
