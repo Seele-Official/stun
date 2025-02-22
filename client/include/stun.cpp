@@ -117,7 +117,7 @@ bool stunMessage::isValid(uint8_t* p) {
 }
 
 
-void trval_stunMessage(stunMessage_view msg){
+void log_stunMessage(stunMessage_view msg){
     LOG.log("STUN MESSAGE: type: {}, length: {}, magicCookie: {}, transactionID: {}\n", tohex(my_ntohs(msg.getHeader()->type)), my_ntohs(msg.getHeader()->length), my_ntohl(msg.getHeader()->magicCookie), std::string(msg.getTransactionID()));
     for (auto& attr : msg.getAttributes()){
         switch (attr->type){

@@ -3,7 +3,7 @@
 void linux_client::send(request_t request) {
     auto [ip, size, data] = request;
     LOG.log("sending to {}:{}\n", my_inet_ntoa(ip.net_address), my_ntohs(ip.net_port));
-    trval_stunMessage(stunMessage_view{data});
+    log_stunMessage(stunMessage_view{data});
     sockaddr_in remoteAddr;
     remoteAddr.sin_family = AF_INET;
     remoteAddr.sin_port = ip.net_port;
@@ -28,7 +28,7 @@ linux_client::response_t linux_client::receive() {
     }
 
     LOG.log("received from {}:{}\n", my_inet_ntoa(from.sin_addr.s_addr), my_ntohs(from.sin_port));
-    trval_stunMessage(stunMessage_view{buffer});
+    log_stunMessage(stunMessage_view{buffer});
 
     return response_t{
         ipv4info{

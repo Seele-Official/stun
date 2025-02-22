@@ -251,4 +251,4 @@ attribute_t* stunMessage::find() {
     return nullptr;
 }
 
-void trval_stunMessage(stunMessage_view msg);
+void log_stunMessage(stunMessage_view msg);
