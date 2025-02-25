@@ -38,3 +38,4 @@ struct nat_type
 
 
 std::expected<nat_type, std::string> nat_test(clientImpl &c, ipv4info server_addr);
+std::expected<uint64_t, std::string> lifetime_test(clientImpl& X, clientImpl& Y, ipv4info& server_addr);

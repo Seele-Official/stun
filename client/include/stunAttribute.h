@@ -29,6 +29,14 @@ namespace stun {
     }
     constexpr uint32_t CHANGE_IP_FLAG = my_htonl(0x04);
     constexpr uint32_t CHANGE_PORT_FLAG = my_htonl(0x02);
+
+    constexpr uint16_t E300_TRY_ALTERNATE = my_htons(0x0300);
+    constexpr uint16_t E400_BAD_REQUEST = my_htons(0x0400);
+    constexpr uint16_t E401_UNAUTHORIZED = my_htons(0x0401);
+    constexpr uint16_t E420_UNKNOWN_ATTRIBUTE = my_htons(0x0420);
+    constexpr uint16_t E438_STALE_NONCE = my_htons(0x0438);
+    constexpr uint16_t E500_SERVER_ERROR = my_htons(0x0500);
+
 }
 struct stunAttribute;
 template <typename attribute_t>
@@ -106,4 +114,21 @@ struct fingerPrint : public stunAttribute {
 
     static uint32_t crc32_bitwise(const uint8_t* data, size_t len);
 
+};
+
+struct errorCode : public stunAttribute {
+    uint16_t zero;
+    uint16_t error_code;
+    char error_reason[0];
+    uint16_t unknown_attributes[0];
+    constexpr static uint16_t getid(){ return stun::attribute::ERROR_CODE;}
+};
+
+struct responsePort : public stunAttribute {
+    uint16_t port;
+    uint16_t padding;
+    constexpr static uint16_t getid(){ return stun::attribute::RESPONSE_PORT;}
+    explicit responsePort(uint16_t port) : 
+        port{port}, 
+        stunAttribute{stun::attribute::RESPONSE_PORT, my_htons(sizeof(port))} {}
 };

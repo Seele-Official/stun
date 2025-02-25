@@ -10,6 +10,7 @@
 #define MY_LITTLE_ENDIAN 0
 #define MY_BIG_ENDIAN 1
 constexpr std::expected<uint32_t, char> my_stoi(std::string_view str){
+    if (str.empty()) return std::unexpected{'\0'};
     uint32_t num = 0;
     for (auto c : str){
         if (c < '0' || c > '9') return std::unexpected{c};
@@ -211,6 +212,9 @@ public:
 
     template <is_stunAttribute attribute_t>
     attribute_t* find();
+
+    inline const uint16_t getType() const { return header->type; }
+
 
     static bool isValid(uint8_t* p);
 };

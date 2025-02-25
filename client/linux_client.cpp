@@ -1,8 +1,9 @@
 #include "linux_client.h"
+#include "stun.h"
 
 void linux_client::send(request_t request) {
     auto [ip, size, data] = request;
-    LOG.log("sending to {}:{}\n", my_inet_ntoa(ip.net_address), my_ntohs(ip.net_port));
+    LOG.log("sending from:{} to {}:{} \n", my_ntohs(myPort), my_inet_ntoa(ip.net_address), my_ntohs(ip.net_port));
     log_stunMessage(stunMessage_view{data});
     sockaddr_in remoteAddr;
     remoteAddr.sin_family = AF_INET;
@@ -27,7 +28,7 @@ linux_client::response_t linux_client::receive() {
         return response_t{ipv4info{}, 0, nullptr};
     }
 
-    LOG.log("received from {}:{}\n", my_inet_ntoa(from.sin_addr.s_addr), my_ntohs(from.sin_port));
+    LOG.log("received from {}:{} to:{}\n", my_inet_ntoa(from.sin_addr.s_addr), my_ntohs(from.sin_port), my_ntohs(myPort));
     log_stunMessage(stunMessage_view{buffer});
 
     return response_t{

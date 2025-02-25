@@ -117,11 +117,13 @@ private:
     }
 
     Timer::delay_task request(const ipinfo_t& ip, stunMessage_view msg, size_t retry){
+        constexpr uint64_t RTO = 500;
+
         uint64_t delay = 0;
         request_t request{ip, msg.size(), msg.data()};
         for (size_t i = 0; i < retry; i++){
             static_cast<Derived*>(this)->send(request);
-            delay = delay*2 + 500;
+            delay = delay*2 + RTO;
             co_await forward2Timer{delay};
         }
         TransactionManager<ipinfo_t>::get_instance().onTimeout(msg.getTransactionID());

@@ -163,9 +163,22 @@ void log_stunMessage(stunMessage_view msg){
                     LOG.log("   FINGERPRINT: {}\n", tohex(fingerprint->crc32));
                 }
                 break;
+            case stun::attribute::ERROR_CODE:
+                {
+                    auto errorcode = attr->as<errorCode>();
+                    LOG.log("   ERROR_CODE: code: {}, reason: {}\n", errorcode->error_code, std::string_view(errorcode->error_reason, my_ntohs(attr->length) - 4));
+                }
+                break;
+            case stun::attribute::RESPONSE_PORT:
+                {
+                    auto responseport = attr->as<responsePort>();
+                    LOG.log("   RESPONSE_PORT: {}\n", my_ntohs(responseport->port));
+                }
+                break;
             default:
                 {
-                    LOG.log("   UNKNOWN ATTRIBUTE: {}\n", tohex(attr->type));
+                    LOG.log("   UNKNOWN ATTRIBUTE: type: {}, length: {}, value: {}\n", tohex(attr->type), my_ntohs(attr->length), tohex(attr->value, my_ntohs(attr->length)));
+
                 }
 
         
