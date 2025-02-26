@@ -36,6 +36,6 @@ struct nat_type
     uint8_t mapping_type;
 };
 
-
+std::expected<ipv4info, std::string> build_binding(clientImpl& c, ipv4info& server_addr);
 std::expected<nat_type, std::string> nat_test(clientImpl &c, ipv4info server_addr);
 std::expected<uint64_t, std::string> lifetime_test(clientImpl& X, clientImpl& Y, ipv4info& server_addr);

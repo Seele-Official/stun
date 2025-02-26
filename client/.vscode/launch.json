@@ -5,7 +5,7 @@
           "name": "调试 C++ (GDB)",
           "type": "cppdbg",
           "request": "launch",
-          "program": "${workspaceRoot}/build/client",
+          "program": "${workspaceRoot}/build/stun-client",
           "args": [],
           "stopAtEntry": false,
           "cwd": "${workspaceFolder}",

@@ -129,7 +129,22 @@ std::expected<nat_type, std::string> nat_test(clientImpl &c, ipv4info server_add
 
 }
 
+std::expected<ipv4info, std::string> build_binding(clientImpl& c, ipv4info& server_addr){
+    stunMessage ip_test_msg(stun::messagemethod::BINDING | stun::messagetype::REQUEST);
+    auto res = c.asyncRequest(server_addr, ip_test_msg, 2)
+                    .get_return_rvalue();
 
+    if (!res.has_value()) return std::unexpected(res.error());
+
+    auto& [ipinfo, responce_msg] = res.value();    
+    auto x_addr = responce_msg.find<ipv4_xor_mappedAddress>();
+    if (x_addr == nullptr) return std::unexpected("server does not support stun-behavior");
+
+    return ipv4info{
+        x_addr->x_address ^ stun::MAGIC_COOKIE, 
+        static_cast<uint16_t>(x_addr->x_port ^ stun::MAGIC_COOKIE)
+    };
+}
 
 std::expected<uint64_t, std::string> lifetime_test(clientImpl& X, clientImpl& Y, ipv4info& server_addr) {
     // Phase 1: Exponential search

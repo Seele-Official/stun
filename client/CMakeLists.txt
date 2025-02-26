@@ -12,7 +12,7 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -static-libstdc++ -static-libgcc -g")
 
 add_definitions(-DMY_BYTE_ORDER=MY_LITTLE_ENDIAN)
 
-# 设置 Debug 模式（可选）
+
 set(CMAKE_BUILD_TYPE "Debug")
 
 # 检测操作系统并选择对应的源文件
@@ -37,17 +37,17 @@ set(SOURCES
 )
 
 # 创建可执行文件
-add_executable(client ${SOURCES})
+add_executable(stun-client ${SOURCES})
 
 # Windows 需要链接 Winsock 库
 if (CMAKE_SYSTEM_NAME STREQUAL "Windows")
-    target_link_libraries(client ws2_32)
-    target_link_libraries(client Iphlpapi)
-    target_link_libraries(client Bcrypt)
+    target_link_libraries(stun-client ws2_32)
+    target_link_libraries(stun-client Iphlpapi)
+    target_link_libraries(stun-client Bcrypt)
 endif()
 
 
-target_include_directories(client PRIVATE include)
+target_include_directories(stun-client PRIVATE include)
 
 
 # 如果有额外的库依赖，可以在这里添加链接指令

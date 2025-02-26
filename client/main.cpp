@@ -33,6 +33,7 @@ int main(int argc, char* argv[]){
     struct option opts[] = {
         {"help", no_argument, nullptr, 'h'},
         {"query-all-addr", no_argument, nullptr, 'q'},
+        {"build-binding", no_argument, nullptr, 'b'},
         {"nat-type", no_argument, nullptr, 't'},
         {"nat-lifetime", no_argument, nullptr, 's'},
         {"interface", required_argument, nullptr, 'i'},
@@ -42,13 +43,14 @@ int main(int argc, char* argv[]){
     bool flag[256] = {};
 
     std::string_view interface;
-    for (int opt; (opt = getopt_long(argc, argv, "qhltsi:", opts, nullptr)) != -1;){
+    for (int opt; (opt = getopt_long(argc, argv, "qhbltsi:", opts, nullptr)) != -1;){
         switch (opt)
         {
    
             case 'h':
                 {
                     std::cout << std::format("Usage: {} <server_addr>\n options:\n", argv[0]);
+                    std::cout << "  -b, --build-binding: build binding\n";
                     std::cout << "  -t, --nat-type: test nat type\n";
                     std::cout << "  -s, --nat-lifetime: test nat lifetime\n";
                     std::cout << "  -i, --interface: specify network interface\n";
@@ -76,7 +78,10 @@ int main(int argc, char* argv[]){
                 break;
             case 't':
                 flag['t'] = true;
-                break;     
+                break;
+            case 'b':
+                flag['b'] = true;
+                break;
             case 'l':
                 {
                     LOG.set_enable(true);
@@ -84,7 +89,7 @@ int main(int argc, char* argv[]){
                 }
                 break;
             default:
-                std::cout << "unknown option, use -h for help\n";
+                std::cout << std::format("unknown option: -{}, use -h for help\n", opt);
                 return 1;
         }
 
@@ -112,7 +117,7 @@ int main(int argc, char* argv[]){
         }
     } else {
         bind_addr = linux_client::query_device_ip("auto");
-        std::cout << std::format("auto detected interface address: {}\n", my_inet_ntoa(bind_addr));
+        std::cout << std::format("auto detected network interface address: {}\n", my_inet_ntoa(bind_addr));
     }
 
 
@@ -197,6 +202,28 @@ int main(int argc, char* argv[]){
             std::cout << "undefined\n";
             break;
         }
+
+        if (flag['b']){
+            auto res = build_binding(c, server_addr.value());
+            if (!res.has_value()){
+                std::cout << res.error() << std::endl;
+                return 1;
+            }
+            std::cout << std::format("build binding success, {} is mapped to public address {}\n", c.getMyInfo().toString(), res.value().toString());
+            std::cout << "if the binding does not expire within a period of time, you may reusing the public address to establish connection\n";
+        }
+        return 0;
+    }
+
+    if (flag['b']){
+        clientImpl c{bind_addr};
+        auto res = build_binding(c, server_addr.value());
+        if (!res.has_value()){
+            std::cout << res.error() << std::endl;
+            return 1;
+        }
+        std::cout << std::format("build binding success, {} is mapped to public address {}\n", c.getMyInfo().toString(), res.value().toString());
+        std::cout << "if the binding does not expire within a period of time, you may reusing the public address to establish connection\n";
     }
 
     return 0;
