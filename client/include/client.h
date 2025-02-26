@@ -149,15 +149,13 @@ public:
 
     lazy_task<expected_res_t> asyncRequest(const ipinfo_t& ip, stunMessage_view msg, size_t retry = 7){
 
-
         auto delay = request(ip, msg, retry);
 
-        
-
-        auto response = std::move(co_await typename TransactionManager<ipinfo_t>::registerAwaiter{msg.getTransactionID()});
-
-
-        co_return std::move(response);
+        co_return std::move(
+            co_await 
+            typename TransactionManager<ipinfo_t>::
+                registerAwaiter{msg.getTransactionID()}
+            );
     }
 
 

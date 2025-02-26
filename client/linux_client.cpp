@@ -1,5 +1,6 @@
 #include "linux_client.h"
 #include "stun.h"
+#include <string_view>
 
 void linux_client::send(request_t request) {
     auto [ip, size, data] = request;
@@ -40,25 +41,47 @@ linux_client::response_t linux_client::receive() {
     };
 }
 
-uint32_t linux_client::queryMyIP() {
+uint32_t linux_client::query_device_ip(std::string_view interface) {
     ifaddrs *ifAddrStruct = nullptr;
     if (getifaddrs(&ifAddrStruct) == -1) {
         LOG.log("[ERROR] getifaddrs() failed: {}\n", strerror(errno));
-        return -1;
+        return 0;
     }
 
     for (ifaddrs *it = ifAddrStruct; it != nullptr; it = it->ifa_next) {
         if (it->ifa_addr == nullptr) continue;
 
         if (it->ifa_addr->sa_family == AF_INET) {
-            if (strcmp(it->ifa_name, "lo") == 0) continue;
-            std::cout << "choosen interface: " << it->ifa_name << std::endl;
-            return ((sockaddr_in*)it->ifa_addr)->sin_addr.s_addr;
+            if (interface == "auto" && it->ifa_name != std::string_view("lo"))
+                return ((sockaddr_in*)it->ifa_addr)->sin_addr.s_addr;
+            if (interface == it->ifa_name)
+                return ((sockaddr_in*)it->ifa_addr)->sin_addr.s_addr;
         }
     }
     if (ifAddrStruct != nullptr) freeifaddrs(ifAddrStruct);
-    return -1;
+    return 0;
 }
+
+std::map<std::string, uint32_t> linux_client::query_all_device_ip() {
+    std::map<std::string, uint32_t> res;
+    ifaddrs *ifAddrStruct = nullptr;
+    if (getifaddrs(&ifAddrStruct) == -1) {
+        LOG.log("[ERROR] getifaddrs() failed: {}\n", strerror(errno));
+        return res;
+    }
+
+    for (ifaddrs *it = ifAddrStruct; it != nullptr; it = it->ifa_next) {
+        if (it->ifa_addr == nullptr) continue;
+
+        if (it->ifa_addr->sa_family == AF_INET) {
+            res[it->ifa_name] = ((sockaddr_in*)it->ifa_addr)->sin_addr.s_addr;
+        }
+    }
+    if (ifAddrStruct != nullptr) freeifaddrs(ifAddrStruct);
+    return res;
+}
+
+
 
 uint16_t linux_client::randomPort() {
     return htons(random<uint16_t>(49152, 65535));

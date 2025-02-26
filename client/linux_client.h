@@ -23,12 +23,15 @@ private:
 
     
 public:
-    explicit linux_client(uint32_t myIP = queryMyIP(), uint16_t myPort = randomPort());
+    explicit linux_client(uint32_t myIP, uint16_t myPort = randomPort());
+        
     inline ~linux_client() {
         close(socketfd);
     }
 
-    static uint32_t queryMyIP();
+
+    static uint32_t query_device_ip(std::string_view interface);
+    static std::map<std::string, uint32_t> query_all_device_ip();
     static uint16_t randomPort();
 
     

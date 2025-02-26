@@ -1,13 +1,16 @@
 #include "nat_test.h"
 #include "stun.h"
+#include <cstdint>
 #include <getopt.h> 
 #include <iostream>
+#include <string>
+#include <string_view>
 
 std::expected<ipv4info, std::string> parse_addr(std::string_view addr){
 
     auto pos = addr.find(':');
     if (pos == std::string_view::npos){
-        return std::unexpected("invalid address");
+        return std::unexpected("parse addr error: missing ':'");
     }
 
     auto ip = addr.substr(0, pos);
@@ -19,56 +22,67 @@ std::expected<ipv4info, std::string> parse_addr(std::string_view addr){
     }
     auto portnum = my_stoi(port);
     if (!portnum.has_value()){
-        return std::unexpected(std::format("parse port error: unexpected char '{}'", portnum.error()));
+        return std::unexpected(std::format("parse port error: unexpected char '{}'", tohex(portnum.error())));
     }
     return ipv4info{ipaddr.value(), my_htons(portnum.value())};
 }
 
 
 
-int main(int argc, char* argv[]){
-    LOG.set_enable(true);
-    LOG.set_output_file("nat_test.log");
-    
+int main(int argc, char* argv[]){    
     struct option opts[] = {
         {"help", no_argument, nullptr, 'h'},
+        {"query-all-addr", no_argument, nullptr, 'q'},
         {"nat-type", no_argument, nullptr, 't'},
         {"nat-lifetime", no_argument, nullptr, 's'},
-        {"server-addr", required_argument, nullptr, 'a'}
+        {"interface", required_argument, nullptr, 'i'},
+        {"log", no_argument, nullptr, 'l'}
     };
 
     bool flag[256] = {};
 
-    std::expected<ipv4info, std::string> server_addr;
-    
-    for (int opt; (opt = getopt_long(argc, argv, "a:hts", opts, nullptr)) != -1;){
+    std::string_view interface;
+    for (int opt; (opt = getopt_long(argc, argv, "qhltsi:", opts, nullptr)) != -1;){
         switch (opt)
         {
-            case 'a':
+   
+            case 'h':
                 {
-                    server_addr = parse_addr(optarg);
-
-                    if (!server_addr.has_value()){
-                        std::cout << server_addr.error() << std::endl;
-                        return 1;
-                    }
-                    flag['a'] = true;
+                    std::cout << std::format("Usage: {} <server_addr>\n options:\n", argv[0]);
+                    std::cout << "  -t, --nat-type: test nat type\n";
+                    std::cout << "  -s, --nat-lifetime: test nat lifetime\n";
+                    std::cout << "  -i, --interface: specify network interface\n";
+                    std::cout << "  -q, --query-all-addr: query all device ip\n";
+                    std::cout << "  -l, --log: enable log\n";
                 }
-                break;
+                return 0;
+
+            case 'q':
+                {
+                    auto res = linux_client::query_all_device_ip();
+                    for (auto& [name, addr] : res){
+                        std::cout << std::format("{}: {}\n", name, my_inet_ntoa(addr));
+                    }    
+                }
+                return 0;            
+            case 'i':
+                {
+                    flag['i'] = true;
+                    interface = optarg;
+                }
+                break;            
             case 's':
                 flag['s'] = true;
-                
                 break;
             case 't':
                 flag['t'] = true;
-                break;        
-            case 'h':
+                break;     
+            case 'l':
                 {
-                    std::cout << std::format("Usage: {} -a <server_addr>\n options:\n", argv[0]);
-                    std::cout << "  -t, --nat-type: test nat type\n";
-                    std::cout << "  -s, --nat-lifetime: test nat lifetime\n";
+                    LOG.set_enable(true);
+                    LOG.set_output_file("nat_test.log");
                 }
-                return 0;
+                break;
             default:
                 std::cout << "unknown option, use -h for help\n";
                 return 1;
@@ -77,27 +91,46 @@ int main(int argc, char* argv[]){
     }
 
 
-
-    if (!flag['a']){
-        std::cout << "server address is required, use -h for help\n";
+    std::expected<ipv4info, std::string> server_addr;
+    
+    if (optind < argc){
+        server_addr = parse_addr(argv[optind]);
+        if (!server_addr.has_value()){
+            std::cout << server_addr.error() << std::endl;
+            return 1;
+        }
+    } else {
+        std::cout << "missing server address, use -h for help\n";
         return 1;
     }
-    if (flag['s']){
-        clientImpl X, Y;
-        std::cout << std::format("X: {}, Y: {}\n", X.getMyInfo().toString(), Y.getMyInfo().toString());
 
+    uint32_t bind_addr = 0;
+    if (flag['i']){
+        if ((bind_addr = linux_client::query_device_ip(interface)) == 0){
+            std::cout << std::format("failed to query interface address: {}\nplease use -q to query all device ip\n", interface);
+            return 1;
+        }
+    } else {
+        bind_addr = linux_client::query_device_ip("auto");
+        std::cout << std::format("auto detected interface address: {}\n", my_inet_ntoa(bind_addr));
+    }
+
+
+    if (flag['s']){
+        std::cout << "it may take a while to test nat lifetime, please wait...\n";
+
+        clientImpl X{bind_addr}, Y{bind_addr};
         auto res = lifetime_test(X, Y, server_addr.value());
 
         if (res.has_value()){
-            std::cout << "lifetime: " << res.value() << "ms\n";
+            std::cout << std::format("nat lifetime: {}s\n", res.value());
         } else {
             std::cout << res.error() << std::endl;
         }
     }
     if (flag['t']){
-        clientImpl c;
-        std::cout << std::format("bind: {}\n", c.getMyInfo().toString());
-    
+        clientImpl c{bind_addr};
+
         auto res = nat_test(c, server_addr.value());
     
     

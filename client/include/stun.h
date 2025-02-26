@@ -82,18 +82,18 @@ constexpr std::expected<uint32_t, std::string> my_inet_addr(std::string_view ip)
     for (size_t i = 0; i < 3; i++) {
         auto pos = ip.find('.');
         if (pos == std::string_view::npos) {
-            return std::unexpected{"expected '.'"};
+            return std::unexpected{"missing '.'"};
         }
         auto num = my_stoi(ip.substr(0, pos));
         if (!num.has_value()) {
-            return std::unexpected{std::string{"unexpected char: "} + num.error()};
+            return std::unexpected{std::format("unexpected char: {}", tohex(num.error()))};
         }
         addr = (addr << 8) | num.value();
         ip.remove_prefix(pos + 1);
     }
     auto num = my_stoi(ip);
     if (!num.has_value()) {
-        return std::unexpected{std::string{"unexpected char: "} + num.error()};
+        return std::unexpected{std::format("unexpected char: {}", tohex(num.error()))};
     }
     addr = (addr << 8) | num.value();
 
