@@ -1,5 +1,7 @@
 #include "linux_client.h"
 #include "stun.h"
+#include <bits/types/struct_timeval.h>
+#include <net/if.h>
 #include <string_view>
 
 void linux_client::send(request_t request) {
@@ -41,7 +43,7 @@ linux_client::response_t linux_client::receive() {
     };
 }
 
-uint32_t linux_client::query_device_ip(std::string_view interface) {
+uint32_t linux_client::query_device_ip(uint32_t interface_index) {
     ifaddrs *ifAddrStruct = nullptr;
     if (getifaddrs(&ifAddrStruct) == -1) {
         LOG.log("[ERROR] getifaddrs() failed: {}\n", strerror(errno));
@@ -52,9 +54,9 @@ uint32_t linux_client::query_device_ip(std::string_view interface) {
         if (it->ifa_addr == nullptr) continue;
 
         if (it->ifa_addr->sa_family == AF_INET) {
-            if (interface == "auto" && it->ifa_name != std::string_view("lo"))
+            if (interface_index == 0 && it->ifa_name != std::string_view("lo"))
                 return ((sockaddr_in*)it->ifa_addr)->sin_addr.s_addr;
-            if (interface == it->ifa_name)
+            if (if_nametoindex(it->ifa_name) == interface_index)
                 return ((sockaddr_in*)it->ifa_addr)->sin_addr.s_addr;
         }
     }
@@ -62,8 +64,8 @@ uint32_t linux_client::query_device_ip(std::string_view interface) {
     return 0;
 }
 
-std::map<std::string, uint32_t> linux_client::query_all_device_ip() {
-    std::map<std::string, uint32_t> res;
+std::map<uint32_t, std::tuple<std::string, uint32_t>> linux_client::query_all_device_ip() {
+    std::map<uint32_t, std::tuple<std::string, uint32_t>> res;
     ifaddrs *ifAddrStruct = nullptr;
     if (getifaddrs(&ifAddrStruct) == -1) {
         LOG.log("[ERROR] getifaddrs() failed: {}\n", strerror(errno));
@@ -74,7 +76,10 @@ std::map<std::string, uint32_t> linux_client::query_all_device_ip() {
         if (it->ifa_addr == nullptr) continue;
 
         if (it->ifa_addr->sa_family == AF_INET) {
-            res[it->ifa_name] = ((sockaddr_in*)it->ifa_addr)->sin_addr.s_addr;
+            res[if_nametoindex(it->ifa_name)] = std::make_tuple(
+                it->ifa_name,
+                ((sockaddr_in*)it->ifa_addr)->sin_addr.s_addr
+            );
         }
     }
     if (ifAddrStruct != nullptr) freeifaddrs(ifAddrStruct);
@@ -104,9 +109,9 @@ linux_client::linux_client(uint32_t myIP, uint16_t myPort) : myIP(myIP), myPort(
         std::exit(1);
     }
 
-    timeout.tv_sec = 1;  
-    timeout.tv_usec = 0;
 
+    timeval timeout{1, 0};
     setsockopt(socketfd, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout));
     this->start_listener();
 }
+

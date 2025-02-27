@@ -29,20 +29,27 @@ std::expected<ipv4info, std::string> parse_addr(std::string_view addr){
 
 
 
-int main(int argc, char* argv[]){    
+int main(int argc, char* argv[]){
+    #if defined(_WIN32) || defined(_WIN64)
+    // set utf-8 console
+    SetConsoleCP(65001);
+    SetConsoleOutputCP(65001);
+    #endif
+
+
     struct option opts[] = {
         {"help", no_argument, nullptr, 'h'},
         {"query-all-addr", no_argument, nullptr, 'q'},
         {"build-binding", no_argument, nullptr, 'b'},
         {"nat-type", no_argument, nullptr, 't'},
         {"nat-lifetime", no_argument, nullptr, 's'},
-        {"interface", required_argument, nullptr, 'i'},
+        {"interface_index", required_argument, nullptr, 'i'},
         {"log", no_argument, nullptr, 'l'}
     };
 
     bool flag[256] = {};
 
-    std::string_view interface;
+    uint32_t interface_index = 0;
     for (int opt; (opt = getopt_long(argc, argv, "qhbltsi:", opts, nullptr)) != -1;){
         switch (opt)
         {
@@ -53,7 +60,7 @@ int main(int argc, char* argv[]){
                     std::cout << "  -b, --build-binding: build binding\n";
                     std::cout << "  -t, --nat-type: test nat type\n";
                     std::cout << "  -s, --nat-lifetime: test nat lifetime\n";
-                    std::cout << "  -i, --interface: specify network interface\n";
+                    std::cout << "  -i, --interface_index: specify network interface\n";
                     std::cout << "  -q, --query-all-addr: query all device ip\n";
                     std::cout << "  -l, --log: enable log\n";
                 }
@@ -61,16 +68,30 @@ int main(int argc, char* argv[]){
 
             case 'q':
                 {
-                    auto res = linux_client::query_all_device_ip();
-                    for (auto& [name, addr] : res){
-                        std::cout << std::format("{}: {}\n", name, my_inet_ntoa(addr));
+                    auto res = clientImpl::query_all_device_ip();
+                    for (auto& [index, addr] : res){
+                        char namebuf[IF_NAMESIZE];
+                        auto& [name, ip] = addr;
+                        #if defined(_WIN32) || defined(_WIN64)
+                        #include "win_client.h"
+                        std::wcout << std::format(L"[{:0>2}] {}: {}\n", index, name, string_to_wstring(my_inet_ntoa(ip)));
+                        #elif defined(__linux__)
+                        #include "linux_client.h"
+                        std::cout << std::format("[{:0>2}] {}: {}\n", index, name, my_inet_ntoa(ip));
+                        #endif
+
                     }    
                 }
                 return 0;            
             case 'i':
                 {
                     flag['i'] = true;
-                    interface = optarg;
+                    auto e = my_stoi(optarg);
+                    if (!e.has_value()){
+                        std::cout << std::format("invalid interface index: {}\n", optarg);
+                        return 1;
+                    }
+                    interface_index = e.value();
                 }
                 break;            
             case 's':
@@ -111,12 +132,15 @@ int main(int argc, char* argv[]){
 
     uint32_t bind_addr = 0;
     if (flag['i']){
-        if ((bind_addr = linux_client::query_device_ip(interface)) == 0){
-            std::cout << std::format("failed to query interface address: {}\nplease use -q to query all device ip\n", interface);
+        if ((bind_addr = clientImpl::query_device_ip(interface_index)) == 0){
+            std::cout << std::format("failed to query interface address: {}\nplease use -q to query all device ip\n", interface_index);
             return 1;
         }
     } else {
-        bind_addr = linux_client::query_device_ip("auto");
+        if ((bind_addr = clientImpl::query_device_ip(interface_index)) == 0){
+            std::cout << "failed to auto detect network interface address, please use -i to specify network interface\n";
+            return 1;
+        }
         std::cout << std::format("auto detected network interface address: {}\n", my_inet_ntoa(bind_addr));
     }
 
