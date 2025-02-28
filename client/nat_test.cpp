@@ -154,7 +154,7 @@ std::expected<uint64_t, std::string> lifetime_test(clientImpl& X, clientImpl& Y,
     uint64_t lifetime = 10;
 
     while (true) {
-        LOG.log("Testing lifetime={}s\n", lifetime);
+        LOG.async_log("Testing lifetime={}s\n", lifetime);
         stunMessage X_msg(stun::messagemethod::BINDING | stun::messagetype::REQUEST);
         auto res = X.asyncRequest(server_addr, X_msg, 3).get_return_rvalue();
         if (!res.has_value()) return std::unexpected(res.error());
@@ -197,7 +197,7 @@ std::expected<uint64_t, std::string> lifetime_test(clientImpl& X, clientImpl& Y,
     // Phase 2: Binary search
     while (low < high && high - low > ACCEPTABLE_ERROR) {
         uint64_t mid = low + (high - low) / 2;
-        LOG.log("Testing lifetime={}s\n", mid);
+        LOG.async_log("Testing lifetime={}s\n", mid);
 
         stunMessage X_msg(stun::messagemethod::BINDING | stun::messagetype::REQUEST);
         auto res = X.asyncRequest(server_addr, X_msg, 3).get_return_rvalue();

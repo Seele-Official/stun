@@ -6,7 +6,8 @@
 #include <format>
 #include <ostream>
 #include <string_view>
-
+#include <utility>
+#include "async.h"
 class Logger {
 private:
     bool enabled_;
@@ -37,12 +38,24 @@ public:
 
 
 
-    template<typename... Args>
-    void log(std::format_string<Args...> fmt, Args&&... args) {
+    template<typename... args_t>
+    void async_log(std::format_string<args_t...> fmt, args_t&&... args) {
+        if (!enabled_) return;
+        async([](Logger* l, std::format_string<args_t...> fmt, args_t... args) -> void {
+            std::lock_guard<std::mutex> lock{l->mutex_};
+
+            std::format_to(std::ostreambuf_iterator{*l->output_}, fmt, std::forward<args_t>(args)...);
+
+        }, this, std::move(fmt), std::forward<args_t>(args)...);
+    }
+
+    template<typename... args_t>
+    void log(std::format_string<args_t...> fmt, args_t&&... args) {
         if (!enabled_) return;
         std::lock_guard lock(mutex_);
-        std::format_to(std::ostreambuf_iterator{*output_}, fmt, std::forward<Args>(args)...);
+        std::format_to(std::ostreambuf_iterator{*output_}, fmt, std::forward<args_t>(args)...);
     }
+
 
     template<typename T>
     auto& operator<<(T&& value) {

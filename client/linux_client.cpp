@@ -6,7 +6,7 @@
 
 void linux_client::send(request_t request) {
     auto [ip, size, data] = request;
-    LOG.log("sending from:{} to {}:{} \n", my_ntohs(myPort), my_inet_ntoa(ip.net_address), my_ntohs(ip.net_port));
+    LOG.async_log("sending from:{} to {}:{} \n", my_ntohs(myPort), my_inet_ntoa(ip.net_address), my_ntohs(ip.net_port));
     log_stunMessage(stunMessage_view{data});
     sockaddr_in remoteAddr;
     remoteAddr.sin_family = AF_INET;
@@ -14,7 +14,7 @@ void linux_client::send(request_t request) {
     remoteAddr.sin_addr.s_addr = ip.net_address;
 
     if (sendto(socketfd, data, size, 0, (sockaddr*)&remoteAddr, sizeof(remoteAddr)) == -1) {
-        LOG.log("[ERROR] sendto() failed: {}\n", strerror(errno));
+        LOG.async_log("[ERROR] sendto() failed: {}\n", strerror(errno));
     }
 }
 
@@ -46,7 +46,7 @@ linux_client::response_t linux_client::receive() {
 uint32_t linux_client::query_device_ip(uint32_t interface_index) {
     ifaddrs *ifAddrStruct = nullptr;
     if (getifaddrs(&ifAddrStruct) == -1) {
-        LOG.log("[ERROR] getifaddrs() failed: {}\n", strerror(errno));
+        LOG.async_log("[ERROR] getifaddrs() failed: {}\n", strerror(errno));
         return 0;
     }
 
@@ -68,7 +68,7 @@ std::map<uint32_t, std::tuple<std::string, uint32_t>> linux_client::query_all_de
     std::map<uint32_t, std::tuple<std::string, uint32_t>> res;
     ifaddrs *ifAddrStruct = nullptr;
     if (getifaddrs(&ifAddrStruct) == -1) {
-        LOG.log("[ERROR] getifaddrs() failed: {}\n", strerror(errno));
+        LOG.async_log("[ERROR] getifaddrs() failed: {}\n", strerror(errno));
         return res;
     }
 
@@ -95,7 +95,7 @@ uint16_t linux_client::randomPort() {
 linux_client::linux_client(uint32_t myIP, uint16_t myPort) : myIP(myIP), myPort(myPort) {
     socketfd = socket(AF_INET, SOCK_DGRAM, 0);
     if (socketfd == -1) {
-        LOG.log("[ERROR] socket() failed: {}\n", strerror(errno));
+        LOG.async_log("[ERROR] socket() failed: {}\n", strerror(errno));
         std::exit(1);
     }
 
@@ -105,7 +105,7 @@ linux_client::linux_client(uint32_t myIP, uint16_t myPort) : myIP(myIP), myPort(
     local.sin_addr.s_addr = myIP;
 
     if (myIP == -1 || bind(socketfd, (sockaddr*)&local, sizeof(local)) == -1) {
-        LOG.log("[ERROR] bind() failed: {}\n", strerror(errno));
+        LOG.async_log("[ERROR] bind() failed: {}\n", strerror(errno));
         std::exit(1);
     }
 

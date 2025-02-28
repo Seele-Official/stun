@@ -61,11 +61,11 @@ public:
         ~delay_task(){
             if (handle) {
                 if (TIMER.cancel(handle)) {
-                    LOG.log("task cancel and destroyed {} \n", tohex(handle.address()));
+                    LOG.async_log("task cancel and destroyed {} \n", tohex(handle.address()));
                     handle.destroy();
                 } else {
                     wait_for_done();
-                    LOG.log("task done and destroyed {} \n", tohex(handle.address()));
+                    LOG.async_log("task done and destroyed {} \n", tohex(handle.address()));
                     handle.destroy();
                 }
 

@@ -9,12 +9,13 @@ The client application allows users to discover their public IP address, NAT typ
 
 **Example:**
 ```
-./stun-client -b -t <server_addr>
+./stun-client 195.208.107.138:3478 -b 11451 -t 
 ```
 Options:
-- `-b`: Build a binding.
+- `<server_addr>`: Specify the STUN server `195.208.107.138:3478` to connect.
+- `-b <bind_port>`: Build a binding by port `11451`.
 - `-t`: Identify the NAT type your client is behind to understand its behavior in network communications.
-- `<server_addr>`: Specify the STUN server to connect to, for example `195.208.107.138:3478`.
+
 ## NAT discover
 ![](NAT%20discover.png)
 

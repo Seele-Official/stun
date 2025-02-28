@@ -2,7 +2,7 @@
 
 void win_client::send(request_t request) {
     auto [ip, size, data] = request;
-    LOG.log("sending to {}:{}\n", my_inet_ntoa(ip.net_address), my_ntohs(ip.net_port));
+    LOG.async_log("sending to {}:{}\n", my_inet_ntoa(ip.net_address), my_ntohs(ip.net_port));
     log_stunMessage(stunMessage_view{data});
     sockaddr_in remoteAddr{};
     remoteAddr.sin_family = AF_INET;
@@ -11,7 +11,7 @@ void win_client::send(request_t request) {
 
     if (sendto(socketfd, reinterpret_cast<const char*>(data), size, 0,
         (sockaddr*)&remoteAddr, sizeof(remoteAddr)) == SOCKET_ERROR) {
-        LOG.log("[ERROR] sendto() failed: {}\n", std::system_error(WSAGetLastError(), std::system_category()).what());
+        LOG.async_log("[ERROR] sendto() failed: {}\n", std::system_error(WSAGetLastError(), std::system_category()).what());
     }
 }
 
@@ -25,11 +25,11 @@ win_client::response_t win_client::receive() {
         (sockaddr*)&from, &fromlen);
 
     if (recvlen == SOCKET_ERROR) {
-        LOG.log("[ERROR] recvfrom() failed: {}\n", std::system_error(WSAGetLastError(), std::system_category()).what());
+        LOG.async_log("[ERROR] recvfrom() failed: {}\n", std::system_error(WSAGetLastError(), std::system_category()).what());
         return response_t{ipv4info{}, 0, nullptr};
     }
 
-    LOG.log("received from {}:{}\n", my_inet_ntoa(from.sin_addr.s_addr), my_ntohs(from.sin_port));
+    LOG.async_log("received from {}:{}\n", my_inet_ntoa(from.sin_addr.s_addr), my_ntohs(from.sin_port));
     log_stunMessage(stunMessage_view{buffer});
     return response_t{
         ipv4info{
@@ -132,13 +132,13 @@ std::map<uint32_t, std::tuple<std::wstring, uint32_t>> win_client::query_all_dev
 
 win_client::win_client(uint32_t myIP, uint16_t myPort) : myIP(myIP), myPort(myPort) {
     if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0) {
-        LOG.log("[ERROR] WSAStartup() failed\n");
+        LOG.async_log("[ERROR] WSAStartup() failed\n");
         std::exit(1);
     }
 
     socketfd = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
     if (socketfd == INVALID_SOCKET) {
-        LOG.log("[ERROR] socket() failed: {}\n", std::system_error(WSAGetLastError(), std::system_category()).what());
+        LOG.async_log("[ERROR] socket() failed: {}\n", std::system_error(WSAGetLastError(), std::system_category()).what());
         std::exit(1);
     }
 
@@ -148,7 +148,7 @@ win_client::win_client(uint32_t myIP, uint16_t myPort) : myIP(myIP), myPort(myPo
     local.sin_addr.s_addr = myIP;
 
     if (bind(socketfd, (sockaddr*)&local, sizeof(local)) == SOCKET_ERROR) {
-        LOG.log("[ERROR] bind() failed: {}\n", std::system_error(WSAGetLastError(), std::system_category()).what());
+        LOG.async_log("[ERROR] bind() failed: {}\n", std::system_error(WSAGetLastError(), std::system_category()).what());
         std::exit(1);
     }
 

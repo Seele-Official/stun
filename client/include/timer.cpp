@@ -4,7 +4,7 @@
 bool Timer::submit(std::coroutine_handle<> handle, uint64_t delay){
     std::lock_guard lock{m};
     auto status = this->tasks.emplace(std::chrono::steady_clock::now() + std::chrono::milliseconds(delay), handle).second;
-    LOG.log("task submitted {} {}\n", tohex(handle.address()), status);
+    LOG.async_log("task submitted {} {}\n", tohex(handle.address()), status);
     cv.notify_one();
     return status;
 }

@@ -36,11 +36,11 @@ int main(int argc, char* argv[]){
     SetConsoleOutputCP(65001);
     #endif
 
-
+    opterr = 0;
     struct option opts[] = {
         {"help", no_argument, nullptr, 'h'},
         {"query-all-addr", no_argument, nullptr, 'q'},
-        {"build-binding", no_argument, nullptr, 'b'},
+        {"build-binding", required_argument, nullptr, 'b'},
         {"nat-type", no_argument, nullptr, 't'},
         {"nat-lifetime", no_argument, nullptr, 's'},
         {"interface_index", required_argument, nullptr, 'i'},
@@ -50,17 +50,18 @@ int main(int argc, char* argv[]){
     bool flag[256] = {};
 
     uint32_t interface_index = 0;
-    for (int opt; (opt = getopt_long(argc, argv, "qhbltsi:", opts, nullptr)) != -1;){
+    uint16_t bind_port = 0;
+    for (int opt; (opt = getopt_long(argc, argv, "qhb:ltsi:", opts, nullptr)) != -1;){
         switch (opt)
         {
    
             case 'h':
                 {
                     std::cout << std::format("Usage: {} <server_addr>\n options:\n", argv[0]);
-                    std::cout << "  -b, --build-binding: build binding\n";
+                    std::cout << "  -b, --build-binding <bind_port>: build binding by specified port\n";
+                    std::cout << "  -i, --interface_index <index>: specify network interface index\n";
                     std::cout << "  -t, --nat-type: test nat type\n";
                     std::cout << "  -s, --nat-lifetime: test nat lifetime\n";
-                    std::cout << "  -i, --interface_index: specify network interface\n";
                     std::cout << "  -q, --query-all-addr: query all device ip\n";
                     std::cout << "  -l, --log: enable log\n";
                 }
@@ -93,16 +94,25 @@ int main(int argc, char* argv[]){
                     }
                     interface_index = e.value();
                 }
-                break;            
+                break;              
+            case 'b':
+                {
+                    flag['b'] = true;
+                    auto e = my_stoi(optarg);
+                    if (!e.has_value() || e.value() < 1 || e.value() > 65535){
+                        std::cout << std::format("invalid port: {}\n", optarg);
+                        return 1;
+                    }
+                    bind_port = e.value();
+                }
+                break;          
             case 's':
                 flag['s'] = true;
                 break;
             case 't':
                 flag['t'] = true;
                 break;
-            case 'b':
-                flag['b'] = true;
-                break;
+
             case 'l':
                 {
                     LOG.set_enable(true);
@@ -110,7 +120,7 @@ int main(int argc, char* argv[]){
                 }
                 break;
             default:
-                std::cout << std::format("unknown option: -{}, use -h for help\n", opt);
+                std::cout << std::format("unknown option: \"-{}\", please use \"-h\" for help\n", static_cast<char>(optopt));
                 return 1;
         }
 
@@ -158,7 +168,7 @@ int main(int argc, char* argv[]){
         }
     }
     if (flag['t']){
-        clientImpl c{bind_addr};
+        clientImpl c{bind_addr, flag['b'] ? my_htons(bind_port) : clientImpl::randomPort()};
 
         auto res = nat_test(c, server_addr.value());
     
@@ -240,7 +250,7 @@ int main(int argc, char* argv[]){
     }
 
     if (flag['b']){
-        clientImpl c{bind_addr};
+        clientImpl c{bind_addr, bind_port};
         auto res = build_binding(c, server_addr.value());
         if (!res.has_value()){
             std::cout << res.error() << std::endl;

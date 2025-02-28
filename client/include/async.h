@@ -1,16 +1,11 @@
 #pragma once
-#include <atomic>
-#include <chrono>
 #include <concepts>
 #include <coroutine>
-#include <cstddef>
-#include <cstdint>
-#include <set>
+#include <cstdio>
 #include <thread>
+#include <tuple>
 #include <utility>
 #include <type_traits>
-#include <functional>
-#include <condition_variable>
 #include "threadpool.h"
 template <typename return_t>
 class lazy_task{
@@ -115,11 +110,7 @@ public:
     lazy_task& operator=(lazy_task&& other) = delete;
     lazy_task& operator=(const lazy_task& other) = delete;
 
-    ~lazy_task(){
-        while (!handle.done())
-            std::this_thread::yield();
-        handle.destroy();
-    }
+    ~lazy_task() = default;
 
 
     bool done() const{
@@ -127,18 +118,25 @@ public:
     }
 };
 
-
+template <typename first_t, typename... args_t>
+auto get_first(first_t&& first, args_t&&...){
+    return std::forward<first_t>(first);
+}
 
 template <typename lambda_t, typename... args_t>
 requires std::invocable<lambda_t, args_t...>
 lazy_task<std::invoke_result_t<lambda_t, args_t...>> async(lambda_t lambda, args_t&&... args){ 
-
-    co_await forward2threadpool{};
+    auto l = lambda;
+    std::tuple<std::remove_reference_t<args_t>...> t{std::forward<args_t>(args)...};
 
     if constexpr (std::is_same_v<void, std::invoke_result_t<lambda_t, args_t...>>){
-        co_return lambda(std::forward<args_t>(args)...);
+        co_await forward2threadpool{true};
+        co_return std::apply(l, t);
+
     } else {
-        co_return std::move(lambda(std::forward<args_t>(args)...));
+        co_await forward2threadpool{};
+        co_return std::apply(l, t);
+
     }
 }
 
