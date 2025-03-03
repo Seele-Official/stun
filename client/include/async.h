@@ -118,18 +118,12 @@ public:
     }
 };
 
-template <typename first_t, typename... args_t>
-auto get_first(first_t&& first, args_t&&...){
-    return std::forward<first_t>(first);
-}
-
 template <typename lambda_t, typename... args_t>
-requires std::invocable<lambda_t, args_t...>
-lazy_task<std::invoke_result_t<lambda_t, args_t...>> async(lambda_t lambda, args_t&&... args){ 
-    auto l = lambda;
+requires std::invocable<lambda_t, std::remove_reference_t<args_t>&...>
+lazy_task<std::invoke_result_t<lambda_t, std::remove_reference_t<args_t>&...>> async(lambda_t&& lambda, args_t&&... args){ 
+    auto l = std::forward<lambda_t>(lambda);
     std::tuple<std::remove_reference_t<args_t>...> t{std::forward<args_t>(args)...};
-
-    if constexpr (std::is_same_v<void, std::invoke_result_t<lambda_t, args_t...>>){
+    if constexpr (std::is_same_v<void, std::invoke_result_t<lambda_t, std::remove_reference_t<args_t>&...>>){
         co_await forward2threadpool{true};
         co_return std::apply(l, t);
 
@@ -139,4 +133,3 @@ lazy_task<std::invoke_result_t<lambda_t, args_t...>> async(lambda_t lambda, args
 
     }
 }
-

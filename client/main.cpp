@@ -74,10 +74,8 @@ int main(int argc, char* argv[]){
                         char namebuf[IF_NAMESIZE];
                         auto& [name, ip] = addr;
                         #if defined(_WIN32) || defined(_WIN64)
-                        #include "win_client.h"
                         std::wcout << std::format(L"[{:0>2}] {}: {}\n", index, name, string_to_wstring(my_inet_ntoa(ip)));
                         #elif defined(__linux__)
-                        #include "linux_client.h"
                         std::cout << std::format("[{:0>2}] {}: {}\n", index, name, my_inet_ntoa(ip));
                         #endif
 
