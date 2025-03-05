@@ -10,29 +10,21 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -static-libstdc++ -static-libgcc -g")
 
+add_definitions(-DMY_LITTLE_ENDIAN=0)
+add_definitions(-DMY_BIG_ENDIAN=1)
 add_definitions(-DMY_BYTE_ORDER=MY_LITTLE_ENDIAN)
 
 
 set(CMAKE_BUILD_TYPE "Debug")
 
-# 检测操作系统并选择对应的源文件
-if (CMAKE_SYSTEM_NAME STREQUAL "Linux")
-    message(STATUS "Building for Linux")
-    set(PLATFORM_SOURCES "linux_client.cpp")
-elseif (CMAKE_SYSTEM_NAME STREQUAL "Windows")
-    message(STATUS "Building for Windows")
-    set(PLATFORM_SOURCES "win_client.cpp")
-    add_definitions(-D_WIN32_WINNT=0x0601) # Windows 7 及以上
-else()
-    message(FATAL_ERROR "Unsupported platform: ${CMAKE_SYSTEM_NAME}")
-endif()
 
 # 设置源文件
 set(SOURCES
     "main.cpp"
     "nat_test.cpp"
-    "./include/timer.cpp"
-    "./include/stun.cpp"
+    "./lib/timer.cpp"
+    "./lib/net_core.cpp"
+    "./core/stun.cpp"
     ${PLATFORM_SOURCES}
 )
 
@@ -47,8 +39,8 @@ if (CMAKE_SYSTEM_NAME STREQUAL "Windows")
 endif()
 
 
-target_include_directories(stun-client PRIVATE include)
-
+target_include_directories(stun-client PRIVATE lib)
+target_include_directories(stun-client PRIVATE core)
 
 # 如果有额外的库依赖，可以在这里添加链接指令
 # target_link_libraries(MyCpp20Project PRIVATE some_library)

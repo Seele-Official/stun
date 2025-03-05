@@ -6,6 +6,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <map>
+#include <ostream>
 #include <tuple>
 #include <expected>
 template <typename ipinfo_t>
@@ -25,6 +26,7 @@ public:
             return response;
         }
         registerAwaiter(transactionID_t id): transactionID{id} {}
+        
     };
 
 
@@ -79,85 +81,41 @@ public:
     }
 
 };
-
+#define TM TransactionManager<ipinfo_t>::get_instance()
 
 template <typename Derived, typename ipinfo_t>
 class client{
 public:    
     using request_t = std::tuple<ipinfo_t, size_t, const uint8_t*>;
     using response_t = std::tuple<ipinfo_t, size_t, uint8_t*>;
-    using transaction_res_t = std::tuple<ipinfo_t, stunMessage>;
-    using expected_res_t = std::expected<transaction_res_t, std::string>;
-private:
-
-
-    std::jthread listener_thread;
-
-    void listener(std::stop_token st){
-        while(!st.stop_requested()){
-
-            auto [ipinfo, size, data] = static_cast<Derived*>(this)->receive();
-
-            // check validity
-            if (data != nullptr && stunMessage::isValid(data)){
-                TransactionManager<ipinfo_t>::get_instance().
-                    onResponse(transaction_res_t{ipinfo, stunMessage{data}});
-            }
-        }
-    }
-
-
-    void send(request_t request){
-        // send
-    }
-
-    response_t receive(){
-        // receive
-        return response_t{ipinfo_t{}, stunMessage{}};
-    }
-
-    Timer::delay_task request(const ipinfo_t& ip, stunMessage_view msg, size_t retry){
-        constexpr uint64_t RTO = 500;
-
-        uint64_t delay = 0;
-        request_t request{ip, msg.size(), msg.data()};
-        for (size_t i = 0; i < retry; i++){
-            static_cast<Derived*>(this)->send(request);
-            delay = delay*2 + RTO;
-            co_await forward2Timer{delay};
-        }
-        TransactionManager<ipinfo_t>::get_instance().onTimeout(msg.getTransactionID());
-        co_return;
-    };
-
-
-
+    using TM_t = TransactionManager<ipinfo_t>;
+    using transaction_res_t = TM_t::transaction_res_t;
+    using expected_res_t = TM_t::expected_res_t;
 
 protected:
-      void start_listener(){
-        listener_thread = std::jthread{&client::listener, this};
-    }  
+    inline void onResponse(transaction_res_t&& response){
+        TM.onResponse(std::move(response));
+    }
 
-
+    inline void onTimeout(transactionID_t transactionID){
+        TM.onTimeout(transactionID);
+    }
+private:
+    Timer::delay_task request(const ipinfo_t& ip, const stunMessage& msg){
+        co_return;
+    }
 public:
-    explicit client() {}
 
-    ~client(){
-        listener_thread.request_stop();
+    explicit client() = default;
+    lazy_task<expected_res_t> asyncRequest(const ipinfo_t& ip, const stunMessage& msg){
+        typename TM_t::registerAwaiter awaiter{msg.getTransactionID()};
+
+        auto delaytask = static_cast<Derived*>(this)->request(ip, msg);
+        auto& res = co_await awaiter;
+        
+        delaytask.cancel();
+        co_return std::move(res);
     }
-
-
-    lazy_task<expected_res_t> asyncRequest(const ipinfo_t& ip, stunMessage_view msg, size_t retry = 7){
-
-        auto delay = request(ip, msg, retry);
-
-        co_return std::move(
-            co_await 
-            typename TransactionManager<ipinfo_t>::
-                registerAwaiter{msg.getTransactionID()}
-            );
-    }
-
 
 };
 

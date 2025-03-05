@@ -1,15 +1,9 @@
-#include "stun.h"
 #include <cstdint>
 #include <expected>
+#include "udpv4_client.cpp"
 
+using clientImpl = udpv4_client;
 
-#if defined(_WIN32) || defined(_WIN64)
-#include "win_client.h"
-using clientImpl = win_client;
-#elif defined(__linux__)
-#include "linux_client.h"
-using clientImpl = linux_client;
-#endif
 
 
 constexpr uint8_t endpoint_independent_mapping = 0b0000;

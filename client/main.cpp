@@ -1,5 +1,4 @@
 #include "nat_test.h"
-#include "stun.h"
 #include <cstdint>
 #include <getopt.h> 
 #include <iostream>
@@ -69,15 +68,10 @@ int main(int argc, char* argv[]){
 
             case 'q':
                 {
-                    auto res = clientImpl::query_all_device_ip();
+                    auto res = query_all_device_ip();
                     for (auto& [index, addr] : res){
-                        char namebuf[IF_NAMESIZE];
                         auto& [name, ip] = addr;
-                        #if defined(_WIN32) || defined(_WIN64)
-                        std::wcout << std::format(L"[{:0>2}] {}: {}\n", index, name, string_to_wstring(my_inet_ntoa(ip)));
-                        #elif defined(__linux__)
-                        std::cout << std::format("[{:0>2}] {}: {}\n", index, name, my_inet_ntoa(ip));
-                        #endif
+                        std::cout << std::format("[{:0>2}] {}: {}\n", index, reinterpret_cast<const char*>(name.c_str()), my_inet_ntoa(ip));
 
                     }    
                 }
@@ -140,12 +134,12 @@ int main(int argc, char* argv[]){
 
     uint32_t bind_addr = 0;
     if (flag['i']){
-        if ((bind_addr = clientImpl::query_device_ip(interface_index)) == 0){
+        if ((bind_addr = query_device_ip(interface_index)) == 0){
             std::cout << std::format("failed to query interface address: {}\nplease use -q to query all device ip\n", interface_index);
             return 1;
         }
     } else {
-        if ((bind_addr = clientImpl::query_device_ip(interface_index)) == 0){
+        if ((bind_addr = query_device_ip(interface_index)) == 0){
             std::cout << "failed to auto detect network interface address, please use -i to specify network interface\n";
             return 1;
         }
@@ -156,7 +150,7 @@ int main(int argc, char* argv[]){
     if (flag['s']){
         std::cout << "it may take a while to test nat lifetime, please wait...\n";
 
-        clientImpl X{bind_addr}, Y{bind_addr};
+        clientImpl X{bind_addr, randomPort()}, Y{bind_addr, randomPort()};
         auto res = lifetime_test(X, Y, server_addr.value());
 
         if (res.has_value()){
@@ -166,7 +160,7 @@ int main(int argc, char* argv[]){
         }
     }
     if (flag['t']){
-        clientImpl c{bind_addr, flag['b'] ? my_htons(bind_port) : clientImpl::randomPort()};
+        clientImpl c{bind_addr, flag['b'] ? my_htons(bind_port) : randomPort()};
 
         auto res = nat_test(c, server_addr.value());
     
@@ -241,7 +235,7 @@ int main(int argc, char* argv[]){
                 std::cout << res.error() << std::endl;
                 return 1;
             }
-            std::cout << std::format("build binding success, {} is mapped to public address {}\n", c.getMyInfo().toString(), res.value().toString());
+            std::cout << std::format("build binding success, {} is mapped to public address {}\n", c.get_my_addr().toString(), res.value().toString());
             std::cout << "if the binding does not expire within a period of time, you may reusing the public address to establish connection\n";
         }
         return 0;
@@ -254,7 +248,7 @@ int main(int argc, char* argv[]){
             std::cout << res.error() << std::endl;
             return 1;
         }
-        std::cout << std::format("build binding success, {} is mapped to public address {}\n", c.getMyInfo().toString(), res.value().toString());
+        std::cout << std::format("build binding success, {} is mapped to public address {}\n", c.get_my_addr().toString(), res.value().toString());
         std::cout << "if the binding does not expire within a period of time, you may reusing the public address to establish connection\n";
     }
 

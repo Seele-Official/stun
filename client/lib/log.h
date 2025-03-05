@@ -45,44 +45,47 @@ public:
     using rv_refer_t = std::remove_reference_t<T>;
 
     template<typename... args_t>
-    using fmt_rv_refer_lt = std::format_string<rv_refer_t<args_t>&...>;
+    using fmt_lrefer_t = std::format_string<rv_refer_t<args_t>&...>;
 
     template<typename... args_t>
-    void async_log(fmt_rv_refer_lt<args_t...> fmt, args_t&&... args) {
+    void async_log(fmt_lrefer_t<args_t...> fmt, args_t&&... args) {
         if (!enabled_) return;
 
-        async([](Logger* l, fmt_rv_refer_lt<args_t...>& fmt, rv_refer_t<args_t>&... args) -> void {
-            std::lock_guard lock(l->mutex_);
-            std::format_to(
-                std::ostreambuf_iterator{*l->output_}, 
-                fmt, 
-                args...
-            );
-        }, this, std::move(fmt), std::forward<args_t>(args)...);
+        async(&Logger::log<rv_refer_t<args_t>&...>,
+            this,
+            std::move(fmt), 
+            std::forward<args_t>(args)...
+        );
 
     }
 
     void async_log(const std::string& str) {
         if (!enabled_) return;
-        async([](Logger* l,const std::string& str) -> void {
-            std::lock_guard lock(l->mutex_);
-            *l->output_ << str;
-        }, this, str);
+
+        async(
+            static_cast<void(Logger::*)(const std::string&)>(&Logger::log), 
+            this, str
+        );
     }
 
     void async_log(std::string&& str) {
         if (!enabled_) return;
-        async([](Logger* l, std::string& str) -> void {
-            std::lock_guard lock(l->mutex_);
-            *l->output_ << str;
-        }, this, str);
+
+        async(
+            static_cast<void(Logger::*)(const std::string&)>(&Logger::log), 
+            this, std::move(str)
+        );
     }
 
     template<typename... args_t>
-    void log(std::format_string<args_t...> fmt, args_t&&... args) {
+    void log(const std::format_string<args_t...>& fmt, args_t&&... args) {
         if (!enabled_) return;
         std::lock_guard lock(mutex_);
-        std::format_to(std::ostreambuf_iterator{*output_}, fmt, std::forward<args_t>(args)...);
+        std::format_to(
+            std::ostreambuf_iterator{*output_}, 
+            fmt, 
+            std::forward<args_t>(args)...
+        );
     }
 
     void log(const std::string& str) {

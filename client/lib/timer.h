@@ -8,6 +8,8 @@
 #include <set>
 #include <thread>
 #include <condition_variable>
+#include <tuple>
+#include <type_traits>
 
 #define TIMER Timer::get_instance()
 
@@ -60,16 +62,24 @@ public:
 
         ~delay_task(){
             if (handle) {
+                wait_for_done();
+                LOG.async_log("task done and destroyed {} \n", tohex(handle.address()));
+                handle.destroy();
+            }
+        }
+
+        void cancel(){
+            if (handle) {       
                 if (TIMER.cancel(handle)) {
-                    LOG.async_log("task cancel and destroyed {} \n", tohex(handle.address()));
-                    handle.destroy();
+                LOG.async_log("task cancel and destroyed {} \n", tohex(handle.address()));
                 } else {
                     wait_for_done();
                     LOG.async_log("task done and destroyed {} \n", tohex(handle.address()));
-                    handle.destroy();
                 }
-
+                handle.destroy();
+                handle = nullptr;
             }
+
         }
 
         void wait_for_done() const{
@@ -129,12 +139,13 @@ public:
 
 
 
-    template <typename lambda_t>
-    requires std::invocable<lambda_t>
-    delay_task schedule(uint64_t delay, lambda_t callback){
-        
+    template <typename lambda_t, typename... args_t>
+    requires std::invocable<lambda_t, std::remove_reference_t<args_t>&...>
+    delay_task schedule(uint64_t delay, lambda_t&& callback, args_t&&... args){
+        auto handle = std::forward<lambda_t>(callback);
+        std::tuple<std::remove_reference_t<args_t>...> args_tuple{std::forward<args_t>(args)...};
         co_await forward2Timer{delay};
-        callback();
+        std::apply(handle, args_tuple);
         co_return;
     }
 

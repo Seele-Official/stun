@@ -3,126 +3,12 @@
 #include <cstddef>
 #include <cstring>
 #include <vector>
-#include <format>
 #include <expected>
 #include "random.h"
 #include "log.h"
-#define MY_LITTLE_ENDIAN 0
-#define MY_BIG_ENDIAN 1
-constexpr std::expected<uint32_t, char> my_stoi(std::string_view str){
-    if (str.empty()) return std::unexpected{'\0'};
-    uint32_t num = 0;
-    for (auto c : str){
-        if (c < '0' || c > '9') return std::unexpected{c};
-        num = num * 10 + c - '0';
-    }
-    return num;
-}
+#include "net_core.h"
 
 
-constexpr auto tohex(void* ptr, size_t size){
-    std::string str{"0x"};
-    for (size_t i = 0; i < size; i++){
-        constexpr char e[] = "0123456789ABCDEF";
-        str += std::format("{}{}", e[((uint8_t*)ptr)[i] >> 4], e[((uint8_t*)ptr)[i] & 0xF]);
-    }
-    return str;
-}
-
-template <typename T>
-constexpr auto tohex(T struct_t){
-    return tohex(&struct_t, sizeof(T));
-}
-
-
-#if MY_BYTE_ORDER == MY_BIG_ENDIAN
-constexpr uint32_t my_htonl(uint32_t hostlong) {
-    return hostlong;
-}
-
-constexpr uint16_t my_htons(uint16_t hostshort) {
-    return hostshort;
-}
-
-constexpr uint32_t my_ntohl(uint32_t netlong) {
-    return my_htonl(netlong);
-}
-
-constexpr uint16_t my_ntohs(uint16_t netshort) {
-    return my_htons(netshort);
-}
-
-
-
-#elif MY_BYTE_ORDER == MY_LITTLE_ENDIAN
-
-constexpr uint32_t my_htonl(uint32_t hostlong) {
-    return ((hostlong & 0x000000FF) << 24) |
-           ((hostlong & 0x0000FF00) << 8) |
-           ((hostlong & 0x00FF0000) >> 8) |
-           ((hostlong & 0xFF000000) >> 24);
-}
-
-constexpr uint16_t my_htons(uint16_t hostshort) {
-    return (hostshort >> 8) | (hostshort << 8);
-}
-
-constexpr uint32_t my_ntohl(uint32_t netlong) {
-    return my_htonl(netlong);
-}
-
-constexpr uint16_t my_ntohs(uint16_t netshort) {
-    return my_htons(netshort);
-}
-
-#endif
-
-constexpr std::expected<uint32_t, std::string> my_inet_addr(std::string_view ip) {
-    uint32_t addr = 0;
-    for (size_t i = 0; i < 3; i++) {
-        auto pos = ip.find('.');
-        if (pos == std::string_view::npos) {
-            return std::unexpected{"missing '.'"};
-        }
-        auto num = my_stoi(ip.substr(0, pos));
-        if (!num.has_value()) {
-            return std::unexpected{std::format("unexpected char: {}", tohex(num.error()))};
-        }
-        addr = (addr << 8) | num.value();
-        ip.remove_prefix(pos + 1);
-    }
-    auto num = my_stoi(ip);
-    if (!num.has_value()) {
-        return std::unexpected{std::format("unexpected char: {}", tohex(num.error()))};
-    }
-    addr = (addr << 8) | num.value();
-
-    return my_htonl(addr);
-}
-
-constexpr std::string my_inet_ntoa(uint32_t addr) {
-    addr = my_ntohl(addr);
-    std::string ip;
-    for (size_t i = 0; i < 4; i++) {
-        ip.insert(0, std::to_string(addr & 0xFF));
-        if (i != 3) ip.insert(0, ".");
-        addr >>= 8;
-    }
-    return ip;
-}
-
-struct ipv4info{
-    uint32_t net_address;
-    uint16_t net_port;
-    explicit ipv4info() : net_address{}, net_port{} {}
-    explicit ipv4info(uint32_t net_address, uint16_t net_port) : net_address{net_address}, net_port{net_port} {}
-    auto operator<=>(const ipv4info&) const = default;
-
-    auto toString() const {
-        return std::format("{}:{}", my_inet_ntoa(net_address), my_ntohs(net_port));
-    }
-
-};
 
 
 struct transactionID_t {
@@ -201,6 +87,8 @@ public:
 
     inline const transactionID_t& getTransactionID() const { return header->transactionID; }
     inline const std::vector<stunAttribute*>& getAttributes() const { return attributes; }
+    inline const uint8_t* data_ptr() const { return data; }
+    inline size_t size() const { return endptr - data; }
     inline bool empty() const { return header == nullptr; }
     inline operator stunMessage_view() const { return stunMessage_view{header, attributes}; }
 
@@ -211,7 +99,10 @@ public:
     bool emplace(args_t&&... args);
 
     template <is_stunAttribute attribute_t>
-    attribute_t* find();
+    attribute_t* find_one();
+
+    template <is_stunAttribute... attribute_t>
+    std::tuple<attribute_t*...> find();
 
     inline const uint16_t getType() const { return header->type; }
 
@@ -246,7 +137,7 @@ bool stunMessage::emplace(args_t&&... args) {
 }
 
 template <is_stunAttribute attribute_t>
-attribute_t* stunMessage::find() {
+attribute_t* stunMessage::find_one() {
     for (auto& attr : attributes) {
         if (attr->type == attribute_t::getid()) {
             return attr->as<attribute_t>();
@@ -254,5 +145,24 @@ attribute_t* stunMessage::find() {
     }
     return nullptr;
 }
+
+template <is_stunAttribute... attribute_t>
+std::tuple<attribute_t*...>  stunMessage::find() {
+    std::tuple<attribute_t*...> res;
+    for (auto& attr : attributes) {
+        
+        if((((std::get<attribute_t*>(res) == nullptr) ?
+                !((attr->type == attribute_t::getid()) &&
+                (std::get<attribute_t*>(res) = attr->as<attribute_t>()))
+                : false
+            ) || ...)
+        ){
+            continue;
+        }
+        
+    }
+    return res;
+}
+
 
 void log_stunMessage(stunMessage_view msg);

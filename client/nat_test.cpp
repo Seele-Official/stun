@@ -12,7 +12,7 @@ std::expected<uint8_t, std::string> maping_test(clientImpl& c, ipv4info& server_
         ipv4info{
             server_altaddr.net_address,
             server_addr.net_port
-        }, ipmaping_test_msg, 2)
+        }, ipmaping_test_msg)
         .get_return_rvalue();
     
     if (!res.has_value()){
@@ -21,7 +21,7 @@ std::expected<uint8_t, std::string> maping_test(clientImpl& c, ipv4info& server_
 
 
 
-    auto x_addr = std::get<1>(res.value()).find<ipv4_xor_mappedAddress>();
+    auto x_addr = std::get<1>(res.value()).find_one<ipv4_xor_mappedAddress>();
     if (x_addr == nullptr){
         return std::unexpected("server has undefined behavior");
     }
@@ -37,14 +37,14 @@ std::expected<uint8_t, std::string> maping_test(clientImpl& c, ipv4info& server_
 
 
     stunMessage portmaping_test_msg(stun::messagemethod::BINDING | stun::messagetype::REQUEST);
-    auto res2 = c.asyncRequest(server_altaddr, portmaping_test_msg, 2)
+    auto res2 = c.asyncRequest(server_altaddr, portmaping_test_msg)
         .get_return_rvalue();
 
     if (!res2.has_value()){
         return std::unexpected(res2.error());
     }
 
-    auto x_addr2 = std::get<1>(res2.value()).find<ipv4_xor_mappedAddress>();
+    auto x_addr2 = std::get<1>(res2.value()).find_one<ipv4_xor_mappedAddress>();
     if (x_addr2 == nullptr){
         return std::unexpected("server has undefined behavior");
     }
@@ -64,7 +64,7 @@ uint8_t filtering_test(clientImpl& c, ipv4info& server_addr){
     
     ipfiltering_test_msg.emplace<changeRequest>(stun::CHANGE_IP_FLAG | stun::CHANGE_PORT_FLAG);
 
-    if(c.asyncRequest(server_addr, ipfiltering_test_msg, 2)
+    if(c.asyncRequest(server_addr, ipfiltering_test_msg)
         .get_return_lvalue()
         .has_value()){
         return endpoint_independent_filtering;
@@ -73,7 +73,7 @@ uint8_t filtering_test(clientImpl& c, ipv4info& server_addr){
     stunMessage portfiltering_test_msg(stun::messagemethod::BINDING | stun::messagetype::REQUEST);
     portfiltering_test_msg.emplace<changeRequest>(stun::CHANGE_PORT_FLAG);
 
-    return c.asyncRequest(server_addr, portfiltering_test_msg, 2)
+    return c.asyncRequest(server_addr, portfiltering_test_msg)
         .get_return_lvalue()
         .has_value() ? 
         address_dependent_filtering : address_and_port_dependent_filtering;
@@ -83,14 +83,13 @@ std::expected<nat_type, std::string> nat_test(clientImpl &c, ipv4info server_add
 
     stunMessage udp_test_msg(stun::messagemethod::BINDING | stun::messagetype::REQUEST);
 
-    auto res = c.asyncRequest(server_addr, udp_test_msg, 2)
+    auto res = c.asyncRequest(server_addr, udp_test_msg)
                     .get_return_rvalue();
 
     if (!res.has_value()) return std::unexpected(res.error());
 
     auto& [ipinfo, responce_msg] = res.value();    
-    auto x_addr = responce_msg.find<ipv4_xor_mappedAddress>();
-    auto otheraddr = responce_msg.find<ipv4_otherAddress>();
+    auto [x_addr, otheraddr] = responce_msg.find<ipv4_xor_mappedAddress, ipv4_otherAddress>();
     if (otheraddr == nullptr || x_addr == nullptr) return std::unexpected("server does not support stun-behavior");
 
     ipv4info first_x_maddr{
@@ -104,7 +103,7 @@ std::expected<nat_type, std::string> nat_test(clientImpl &c, ipv4info server_add
     if (server_addr.net_address == server_altaddr.net_address || 
         server_addr.net_port == server_altaddr.net_port) return std::unexpected("server has undefined behavior");
 
-    if (first_x_maddr == c.getMyInfo()){
+    if (first_x_maddr == c.get_my_addr()){
         return nat_type{
             filtering_test(c, server_addr),
             no_nat_mapping
@@ -131,13 +130,13 @@ std::expected<nat_type, std::string> nat_test(clientImpl &c, ipv4info server_add
 
 std::expected<ipv4info, std::string> build_binding(clientImpl& c, ipv4info& server_addr){
     stunMessage ip_test_msg(stun::messagemethod::BINDING | stun::messagetype::REQUEST);
-    auto res = c.asyncRequest(server_addr, ip_test_msg, 2)
+    auto res = c.asyncRequest(server_addr, ip_test_msg)
                     .get_return_rvalue();
 
     if (!res.has_value()) return std::unexpected(res.error());
 
     auto& [ipinfo, responce_msg] = res.value();    
-    auto x_addr = responce_msg.find<ipv4_xor_mappedAddress>();
+    auto x_addr = responce_msg.find_one<ipv4_xor_mappedAddress>();
     if (x_addr == nullptr) return std::unexpected("server does not support stun-behavior");
 
     return ipv4info{
@@ -156,10 +155,10 @@ std::expected<uint64_t, std::string> lifetime_test(clientImpl& X, clientImpl& Y,
     while (true) {
         LOG.async_log("Testing lifetime={}s\n", lifetime);
         stunMessage X_msg(stun::messagemethod::BINDING | stun::messagetype::REQUEST);
-        auto res = X.asyncRequest(server_addr, X_msg, 3).get_return_rvalue();
+        auto res = X.asyncRequest(server_addr, X_msg).get_return_rvalue();
         if (!res.has_value()) return std::unexpected(res.error());
 
-        auto x_addr = std::get<1>(res.value()).find<ipv4_xor_mappedAddress>();
+        auto x_addr = std::get<1>(res.value()).find_one<ipv4_xor_mappedAddress>();
         if (!x_addr) return std::unexpected("server does not support stun-behavior");
         uint16_t X_port = x_addr->x_port ^ stun::MAGIC_COOKIE;
 
@@ -167,7 +166,7 @@ std::expected<uint64_t, std::string> lifetime_test(clientImpl& X, clientImpl& Y,
 
         stunMessage Y_msg(stun::messagemethod::BINDING | stun::messagetype::REQUEST);
         Y_msg.emplace<responsePort>(X_port);
-        auto res2 = Y.asyncRequest(server_addr, Y_msg, 2).get_return_rvalue();
+        auto res2 = Y.asyncRequest(server_addr, Y_msg).get_return_rvalue();
 
         if (!res2.has_value()) {
             high = lifetime;
@@ -177,7 +176,7 @@ std::expected<uint64_t, std::string> lifetime_test(clientImpl& X, clientImpl& Y,
 
         auto& Y_res = std::get<1>(res2.value());
         if (Y_res.getType() == (stun::messagetype::ERROR_RESPONSE | stun::messagemethod::BINDING)) {
-            auto err = Y_res.find<errorCode>();
+            auto err = Y_res.find_one<errorCode>();
             if (!err) return std::unexpected("Server error: Missing error code");
             
             if (err->error_code == stun::E420_UNKNOWN_ATTRIBUTE) {
@@ -200,10 +199,10 @@ std::expected<uint64_t, std::string> lifetime_test(clientImpl& X, clientImpl& Y,
         LOG.async_log("Testing lifetime={}s\n", mid);
 
         stunMessage X_msg(stun::messagemethod::BINDING | stun::messagetype::REQUEST);
-        auto res = X.asyncRequest(server_addr, X_msg, 3).get_return_rvalue();
+        auto res = X.asyncRequest(server_addr, X_msg).get_return_rvalue();
         if (!res.has_value()) return std::unexpected(res.error());
 
-        auto x_addr = std::get<1>(res.value()).find<ipv4_xor_mappedAddress>();
+        auto x_addr = std::get<1>(res.value()).find_one<ipv4_xor_mappedAddress>();
         if (!x_addr) return std::unexpected("server has undefined behavior");
         uint16_t X_port = x_addr->x_port ^ stun::MAGIC_COOKIE;
 
@@ -211,14 +210,14 @@ std::expected<uint64_t, std::string> lifetime_test(clientImpl& X, clientImpl& Y,
 
         stunMessage Y_msg(stun::messagemethod::BINDING | stun::messagetype::REQUEST);
         Y_msg.emplace<responsePort>(X_port);
-        auto res2 = Y.asyncRequest(server_addr, Y_msg, 2).get_return_rvalue();
+        auto res2 = Y.asyncRequest(server_addr, Y_msg).get_return_rvalue();
 
         if (!res2.has_value()) {
             high = mid;
         } else {
             auto& Y_res = std::get<1>(res2.value());
             if (Y_res.getType() == (stun::messagetype::ERROR_RESPONSE | stun::messagemethod::BINDING)) {
-                auto err = Y_res.find<errorCode>();
+                auto err = Y_res.find_one<errorCode>();
                 if (!err) return std::unexpected("Server error: Missing error code");
                 
                 if (err->error_code == stun::E420_UNKNOWN_ATTRIBUTE) {
