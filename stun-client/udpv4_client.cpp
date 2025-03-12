@@ -35,7 +35,7 @@ private:
 
         uint64_t delay = 0;
         for (size_t i = 0; i < retry; i++){
-            auto res = udp.sendto(ip, msg.data_ptr(), msg.size());
+            udp.sendto(ip, msg.data_ptr(), msg.size());
             LOG.async_log("sending from:{} to {}:{} \n", my_ntohs(my_addr.net_port), my_inet_ntoa(ip.net_address), my_ntohs(ip.net_port));
             log_stunMessage(msg);
             delay = delay*2 + RTO;

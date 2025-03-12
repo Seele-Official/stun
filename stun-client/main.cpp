@@ -108,7 +108,7 @@ int main(int argc, char* argv[]){
             case 'l':
                 {
                     LOG.set_enable(true);
-                    LOG.set_output_file("nat_test.log");
+                    LOG.set_output_file("114514.log");
                 }
                 break;
             default:

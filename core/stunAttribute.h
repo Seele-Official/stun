@@ -95,8 +95,8 @@ struct changeRequest : public stunAttribute {
     constexpr static uint16_t getid(){ return stun::attribute::CHANGE_REQUEST;}
     
     explicit changeRequest(uint32_t flags) : 
-        flags{flags}, 
-        stunAttribute{stun::attribute::CHANGE_REQUEST, my_htons(sizeof(flags))} {}
+        stunAttribute{stun::attribute::CHANGE_REQUEST, my_htons(sizeof(flags))},
+        flags{flags} {}
 };
 
 struct softWare : public stunAttribute {
@@ -109,8 +109,8 @@ struct fingerPrint : public stunAttribute {
     uint32_t crc32;
     constexpr static uint16_t getid(){ return stun::attribute::FINGERPRINT;}
     explicit fingerPrint(uint32_t crc32) : 
-        crc32{crc32}, 
-        stunAttribute{stun::attribute::FINGERPRINT, my_htons(sizeof(crc32))} {}
+        stunAttribute{stun::attribute::FINGERPRINT, my_htons(sizeof(crc32))}, 
+        crc32{crc32} {}
 
     static uint32_t crc32_bitwise(const uint8_t* data, size_t len);
 
@@ -129,6 +129,6 @@ struct responsePort : public stunAttribute {
     uint16_t padding;
     constexpr static uint16_t getid(){ return stun::attribute::RESPONSE_PORT;}
     explicit responsePort(uint16_t port) : 
-        port{port}, 
-        stunAttribute{stun::attribute::RESPONSE_PORT, my_htons(sizeof(port))} {}
+        stunAttribute{stun::attribute::RESPONSE_PORT, my_htons(sizeof(port))}, 
+        port{port} {}
 };

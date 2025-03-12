@@ -2,6 +2,7 @@
 #include <cstdint>
 #include <cstddef>
 #include <cstring>
+#include <format>
 #include <vector>
 #include <expected>
 #include "random.h"
@@ -104,8 +105,8 @@ public:
     template <is_stunAttribute... attribute_t>
     std::tuple<attribute_t*...> find();
 
-    inline const uint16_t getType() const { return header->type; }
-
+    inline uint16_t getType() const { return header->type; }
+    std::string toString() const;
 
     static bool isValid(uint8_t* p);
 };
@@ -146,18 +147,36 @@ attribute_t* stunMessage::find_one() {
     return nullptr;
 }
 
+
+
+template <typename... args_t>
+struct check_unique;
+template <typename T>
+struct check_unique<T> {
+    static constexpr bool value = true;
+};
+template <typename T, typename... args_t>
+struct check_unique<T, args_t...> {
+    static constexpr bool value = (!std::is_same_v<T, args_t> && ...) && check_unique<args_t...>::value;
+};
+template <typename... args_t>
+inline constexpr bool check_unique_v = check_unique<args_t...>::value;
+
 template <is_stunAttribute... attribute_t>
 std::tuple<attribute_t*...>  stunMessage::find() {
-    std::tuple<attribute_t*...> res;
+    static_assert(check_unique_v<attribute_t...>, "Attributes must be unique");
+    std::tuple<attribute_t*...> res{};
+
     for (auto& attr : attributes) {
-        
-        if((((std::get<attribute_t*>(res) == nullptr) ?
-                !((attr->type == attribute_t::getid()) &&
-                (std::get<attribute_t*>(res) = attr->as<attribute_t>()))
-                : false
-            ) || ...)
-        ){
-            continue;
+
+        (   
+            ((std::get<attribute_t*>(res) == nullptr) && 
+            (attr->type == attribute_t::getid()) && 
+            (std::get<attribute_t*>(res) = attr->as<attribute_t>())) 
+        || ...);
+
+        if (((std::get<attribute_t*>(res) != nullptr) && ...)){
+            break;
         }
         
     }
