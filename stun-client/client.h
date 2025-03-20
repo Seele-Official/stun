@@ -1,12 +1,11 @@
 #pragma once
 #include "async.h"
+#include "log.h"
 #include "stun.h"
-#include "threadpool.h"
 #include "timer.h"
 #include <cstddef>
 #include <cstdint>
 #include <map>
-#include <ostream>
 #include <tuple>
 #include <expected>
 template <typename ipinfo_t>
@@ -55,8 +54,9 @@ public:
         std::lock_guard lock{m};
         auto it = transactions.find(std::get<1>(response).getTransactionID());
         if (it != transactions.end()){
+            LOG.log("transaction {} on response\n", tohex(it->first));
             it->second.awaiter->response = std::move(response);
-            THREADPOOL.submit(it->second.handle);
+            it->second.handle.resume();
             transactions.erase(it);
         }
 
@@ -67,8 +67,9 @@ public:
 
         auto it = transactions.find(transactionID);
         if (it != transactions.end()){
+            LOG.log("transaction {} on timeout\n", tohex(it->first));
             it->second.awaiter->response = std::unexpected("Timeout");
-            THREADPOOL.submit(it->second.handle);
+            it->second.handle.resume();
             transactions.erase(it);
         }
     }
@@ -101,7 +102,7 @@ protected:
         TM.onTimeout(transactionID);
     }
 private:
-    Timer::delay_task request(const ipinfo_t& ip, const stunMessage& msg){
+    delay_task request(const ipinfo_t& ip, const stunMessage& msg){
         co_return;
     }
 public:
@@ -113,7 +114,10 @@ public:
         auto delaytask = static_cast<Derived*>(this)->request(ip, msg);
         auto& res = co_await awaiter;
         
-        delaytask.cancel();
+        if (res.has_value()){
+            delaytask.cancel();
+        }
+
         co_return std::move(res);
     }
 

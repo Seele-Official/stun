@@ -1,6 +1,7 @@
 #include "client.h"
 #include "net_core.h"
 #include "stun.h"
+#include "timer.h"
 #include <cstddef>
 
 class udpv4_client : public client<udpv4_client, ipv4info>{
@@ -30,17 +31,18 @@ private:
     }  
 
 
-    Timer::delay_task request(const ipv4info& ip, const stunMessage& msg){
+    delay_task request(const ipv4info& ip, const stunMessage& msg){
         constexpr uint64_t RTO = 500, retry = 2;
-
         uint64_t delay = 0;
+        co_await delay_awaiter{delay};
         for (size_t i = 0; i < retry; i++){
             udp.sendto(ip, msg.data_ptr(), msg.size());
             LOG.async_log("sending from:{} to {}:{} \n", my_ntohs(my_addr.net_port), my_inet_ntoa(ip.net_address), my_ntohs(ip.net_port));
             log_stunMessage(msg);
             delay = delay*2 + RTO;
-            co_await forward2Timer{delay};
+            co_await repeat_awaiter{delay};
         }
+
         this->onTimeout(msg.getTransactionID());
         co_return;
     };

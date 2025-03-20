@@ -1,12 +1,10 @@
 #pragma once
 
-#include <iostream>
 #include <mutex>
 #include <thread>
 #include <condition_variable>
 #include <list>
 #include <coroutine>
-#include <tuple>
 
 template <size_t pool_size>
 class threadpool{
@@ -16,12 +14,12 @@ private:
     std::condition_variable cv;
     std::mutex m;
 
-    std::list<std::tuple<std::coroutine_handle<>, bool>> tasks;
+    std::list<std::coroutine_handle<>> tasks;
 
 
     void worker(std::stop_token st){
         while(!st.stop_requested()){
-            std::tuple<std::coroutine_handle<>, bool> task;
+            std::coroutine_handle<> h;
             {
                 std::unique_lock lock{m};
                 if (tasks.empty()){
@@ -31,13 +29,11 @@ private:
                     continue;
                 }
                 
-                task = tasks.front();
+                h = tasks.front();
                 tasks.pop_front();
             }
 
-            auto& [h, own] = task;
-            if (h.resume(), own){ h.destroy(); std::cout<<("destroyed coroutine\n");}
-
+            h.resume();
         }
     }
 
@@ -49,9 +45,9 @@ public:
         return instance;
     } 
 
-    auto submit(std::coroutine_handle<> h, bool own = false){
+    auto submit(std::coroutine_handle<> h){
         std::lock_guard<std::mutex> lock{m};
-        tasks.emplace_back(h, own);
+        tasks.emplace_back(h);
         cv.notify_one();
     }
 
@@ -72,10 +68,9 @@ public:
 
 
 
-#define THREADPOOL threadpool<3>::get_instance()
+#define THREADPOOL threadpool<1>::get_instance()
 
-struct forward2threadpool{
-    bool own;
+struct threadpool_awaiter{
     bool await_ready() { return false; }
 
     void await_suspend(std::coroutine_handle<> handle) {
@@ -84,5 +79,5 @@ struct forward2threadpool{
 
     void await_resume() {}
 
-    explicit forward2threadpool(bool own = false): own{own}{}
+    explicit threadpool_awaiter(){}
 };

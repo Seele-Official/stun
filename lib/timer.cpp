@@ -1,13 +1,4 @@
 #include "timer.h"
-#include "log.h"
-
-bool Timer::submit(std::coroutine_handle<> handle, uint64_t delay){
-    std::lock_guard lock{m};
-    auto status = this->tasks.emplace(std::chrono::steady_clock::now() + std::chrono::milliseconds(delay), handle).second;
-    LOG.async_log("task submitted {} {}\n", tohex(handle.address()), status);
-    cv.notify_one();
-    return status;
-}
 
 
 
@@ -22,18 +13,19 @@ void Timer::worker(std::stop_token st){
         }
 
         auto t = tasks.begin();
-        if (t->expirytime > std::chrono::steady_clock::now()){
-            cv.wait_until(lock, t->expirytime, [&]{
-                return tasks.begin()->expirytime <= std::chrono::steady_clock::now() || st.stop_requested();
+        if (t->first > std::chrono::steady_clock::now()){
+            cv.wait_until(lock, t->first, [&]{
+                return tasks.begin()->first <= std::chrono::steady_clock::now() || st.stop_requested();
             });
             continue;
         }
         
-        auto handle = t->handle;
+        auto task = t->second;
         tasks.erase(t);
+
+        task.run();   
         lock.unlock();
-        
-        handle.resume();
+
     }
 }
 
@@ -41,9 +33,10 @@ void Timer::worker(std::stop_token st){
 bool Timer::cancel(std::coroutine_handle<> handle){
     std::lock_guard lock{m};
 
-    for (auto it = tasks.begin(); it != tasks.end(); it++){
-        if (it->handle == handle){
-            tasks.erase(it);
+    for (auto& it : tasks){
+        if (it.second.handle == handle){
+            tasks.erase(it.first);
+            LOG.log("cancelling task: {}\n", tohex(handle.address()));
             return true;
         }
     }

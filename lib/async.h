@@ -81,8 +81,8 @@ template <>
 class lazy_task<void>{
 public:
     struct promise_type{
-        auto get_return_object(){
-            return lazy_task{this};
+        lazy_task<void> get_return_object(){
+            return {};
         }
 
         auto initial_suspend(){
@@ -90,32 +90,12 @@ public:
         }
 
         auto final_suspend() noexcept{
-            return std::suspend_always{};
+            return std::suspend_never{};
         }
         void unhandled_exception() {  }
 
         void return_void(){}
     };
-private:
-    using handle_type = std::coroutine_handle<promise_type>;
-
-    handle_type handle;
-
-
-public:
-
-    explicit lazy_task(promise_type* p): handle{handle_type::from_promise(*p)}{}
-    lazy_task(lazy_task&& other) = delete;
-    lazy_task(const lazy_task& other) = delete;
-    lazy_task& operator=(lazy_task&& other) = delete;
-    lazy_task& operator=(const lazy_task& other) = delete;
-
-    ~lazy_task() = default;
-
-
-    bool done() const{
-        return handle.done();
-    }
 };
 
 template <typename lambda_t, typename... args_t>
@@ -123,13 +103,7 @@ requires std::invocable<lambda_t, std::remove_reference_t<args_t>&...>
 lazy_task<std::invoke_result_t<lambda_t, std::remove_reference_t<args_t>&...>> async(lambda_t&& lambda, args_t&&... args){ 
     auto l = std::forward<lambda_t>(lambda);
     std::tuple<std::remove_reference_t<args_t>...> t{std::forward<args_t>(args)...};
-    if constexpr (std::is_same_v<void, std::invoke_result_t<lambda_t, std::remove_reference_t<args_t>&...>>){
-        co_await forward2threadpool{true};
-        co_return std::apply(l, t);
 
-    } else {
-        co_await forward2threadpool{};
-        co_return std::apply(l, t);
-
-    }
+    co_await threadpool_awaiter{};
+    co_return std::apply(l, t);
 }
