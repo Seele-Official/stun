@@ -20,9 +20,11 @@ private:
             ipv4info ipinfo;
             // check validity
             if (udp.recvfrom(ipinfo, buffer, buffer_size).has_value() && stunMessage::isValid(buffer)){
-                LOG.log("received from {}:{} to:{}\n", my_inet_ntoa(ipinfo.net_address), my_ntohs(ipinfo.net_port), my_ntohs(my_addr.net_port));
-                log_stunMessage(stunMessage_view{buffer});
-                this->onResponse(transaction_res_t{ipinfo, stunMessage{buffer}});
+                                
+                auto msg = stunMessage{buffer};
+                LOG.log("received from {}:{} to:{}\n{}", my_inet_ntoa(ipinfo.net_address), my_ntohs(ipinfo.net_port), my_ntohs(my_addr.net_port), msg.toString());
+
+                this->onResponse(transaction_res_t{ipinfo, std::move(msg)});
             }
         }
     }
@@ -37,8 +39,7 @@ private:
         co_await delay_awaiter{delay};
         for (size_t i = 0; i < retry; i++){
             udp.sendto(ip, msg.data_ptr(), msg.size());
-            LOG.async_log("sending from:{} to {}:{} \n", my_ntohs(my_addr.net_port), my_inet_ntoa(ip.net_address), my_ntohs(ip.net_port));
-            log_stunMessage(msg);
+            LOG.async_log("sending from:{} to {}:{} \n{}", my_ntohs(my_addr.net_port), my_inet_ntoa(ip.net_address), my_ntohs(ip.net_port), msg.toString());
             delay = delay*2 + RTO;
             co_await repeat_awaiter{delay};
         }

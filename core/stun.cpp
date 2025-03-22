@@ -1,6 +1,6 @@
 #include "stun.h"
-#include "log.h"
 #include "stunAttribute.h"
+#include <format>
 
 constexpr std::array<uint32_t, 256> crc32_table() {
     constexpr uint32_t poly = 0xEDB88320; // 反射多项式
@@ -193,74 +193,3 @@ std::string stunMessage::toString() const {
     return str;
 }
 
-void log_stunMessage(stunMessage_view msg){
-    std::string log;
-    log += std::format("STUN MESSAGE: type: {}, length: {}, magicCookie: {}, transactionID: {}\n", tohex(my_ntohs(msg.getHeader()->type)), my_ntohs(msg.getHeader()->length), my_ntohl(msg.getHeader()->magicCookie), std::string(msg.getTransactionID()));
-    for (auto& attr : msg.getAttributes()){
-        switch (attr->type){
-            case stun::attribute::MAPPED_ADDRESS:
-                {
-                    auto mappedaddress = attr->as<ipv4_mappedAddress>();
-                    log += std::format("   MAPPED_ADDRESS: {}:{}\n", my_inet_ntoa(mappedaddress->address), my_ntohs(mappedaddress->port));
-                }
-                break;
-            case stun::attribute::XOR_MAPPED_ADDRESS:
-                {
-                    auto mappedaddress = attr->as<ipv4_xor_mappedAddress>();
-                    log += std::format("   XOR_MAPPED_ADDRESS: {}:{}\n", my_inet_ntoa(mappedaddress->x_address ^ stun::MAGIC_COOKIE), my_ntohs(mappedaddress->x_port ^ stun::MAGIC_COOKIE));
-                }
-                break;
-            case stun::attribute::RESPONSE_ORIGIN:
-                {
-                    auto responseorigin = attr->as<ipv4_responseOrigin>();
-                    log += std::format("   RESPONSE_ORIGIN: {}:{}\n", my_inet_ntoa(responseorigin->address), my_ntohs(responseorigin->port));
-                }
-                break;
-            case stun::attribute::OTHER_ADDRESS:
-                {
-                    auto otherAddress = attr->as<ipv4_otherAddress>();
-                    log += std::format("   OTHER_ADDRESS: {}:{}\n", my_inet_ntoa(otherAddress->address), my_ntohs(otherAddress->port));
-                }
-                break;
-            case stun::attribute::SOFTWARE:
-                {
-                    auto software = attr->as<softWare>();
-                    log += std::format("   SOFTWARE: {}\n", std::string_view(software->value, my_ntohs(attr->length)));
-                }
-                break;
-            case stun::attribute::CHANGE_REQUEST:
-                {
-                    auto changerequest = attr->as<changeRequest>();
-                    log += std::format("   CHANGE_REQUEST: {}\n", tohex(changerequest->flags));
-                }
-                break;
-            case stun::attribute::FINGERPRINT:
-                {
-                    auto fingerprint = attr->as<fingerPrint>();
-                    log += std::format("   FINGERPRINT: {}\n", tohex(fingerprint->crc32));
-                }
-                break;
-            case stun::attribute::ERROR_CODE:
-                {
-                    auto errorcode = attr->as<errorCode>();
-                    log += std::format("   ERROR_CODE: code: {}, reason: {}\n", errorcode->error_code, std::string_view(errorcode->error_reason, my_ntohs(attr->length) - 4));
-                }
-                break;
-            case stun::attribute::RESPONSE_PORT:
-                {
-                    auto responseport = attr->as<responsePort>();
-                    log += std::format("   RESPONSE_PORT: {}\n", my_ntohs(responseport->port));
-                }
-                break;
-            default:
-                {
-                    log += std::format("   UNKNOWN ATTRIBUTE: type: {}, length: {}, value: {}\n", tohex(attr->type), my_ntohs(attr->length), tohex(attr->value, my_ntohs(attr->length)));
-
-                }
-
-        
-        }
-    }
-    log += "\n";
-    LOG.async_log(std::move(log));
-}

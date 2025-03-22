@@ -187,6 +187,22 @@ udpv4::udpv4(){
     }
 }
 
+udpv4::udpv4(udpv4&& other){
+    socketfd = other.socketfd;
+    other.socketfd = -1;
+}
+
+udpv4& udpv4::operator=(udpv4&& other){
+    if (this != &other){
+        if (socketfd != -1)
+            close(socketfd);
+        socketfd = other.socketfd;
+        other.socketfd = -1;
+    }
+    return *this;
+}
+
+
 udpv4::~udpv4(){
     if (socketfd != -1)
         close(socketfd);

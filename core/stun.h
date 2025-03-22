@@ -2,11 +2,9 @@
 #include <cstdint>
 #include <cstddef>
 #include <cstring>
-#include <format>
 #include <vector>
 #include <expected>
 #include "random.h"
-#include "log.h"
 #include "net_core.h"
 
 
@@ -183,5 +181,3 @@ std::tuple<attribute_t*...>  stunMessage::find() {
     return res;
 }
 
-
-void log_stunMessage(stunMessage_view msg);

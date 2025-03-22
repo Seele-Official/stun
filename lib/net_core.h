@@ -153,6 +153,12 @@ private:
     int socketfd;
 public:
     explicit udpv4();
+    udpv4(const udpv4&) = delete;
+    udpv4(udpv4&&);
+
+    udpv4& operator=(const udpv4&) = delete;
+    udpv4& operator=(udpv4&&);
+
     ~udpv4();
 
     bool bind(ipv4info info);
