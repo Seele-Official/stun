@@ -178,6 +178,6 @@ uint32_t query_device_ip(uint32_t interface_index);
 
 std::map<uint32_t, std::tuple<std::u8string, uint32_t>> query_all_device_ip();
 
-inline uint16_t randomPort() {
-    return my_htons(random<uint16_t>(49152, 65535));
+inline uint16_t random_pri_iana_net_port() {
+    return my_htons(random<uint16_t>(32768, 65535));
 }

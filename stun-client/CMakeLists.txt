@@ -14,8 +14,6 @@ add_definitions(-DMY_BIG_ENDIAN=1)
 add_definitions(-DMY_BYTE_ORDER=MY_LITTLE_ENDIAN)
 
 
-set(CMAKE_BUILD_TYPE "Debug")
-
 
 
 set(SOURCES
@@ -40,3 +38,6 @@ endif()
 
 target_include_directories(stun-client PRIVATE ../lib)
 target_include_directories(stun-client PRIVATE ../core)
+
+install(TARGETS stun-client
+        RUNTIME DESTINATION bin)

@@ -1,4 +1,5 @@
 #include "nat_test.h"
+#include "net_core.h"
 #include <cstdint>
 #include <getopt.h> 
 #include <iostream>
@@ -57,7 +58,7 @@ int main(int argc, char* argv[]){
             case 'h':
                 {
                     std::cout << std::format("Usage: {} <server_addr>\n options:\n", argv[0]);
-                    std::cout << "  -b, --build-binding <bind_port>: build binding by specified port\n";
+                    std::cout << "  -b, --build-binding <bind_port>/auto: build binding by specified port\n";
                     std::cout << "  -i, --interface_index <index>: specify network interface index\n";
                     std::cout << "  -t, --nat-type: test nat type\n";
                     std::cout << "  -s, --nat-lifetime: test nat lifetime\n";
@@ -90,12 +91,17 @@ int main(int argc, char* argv[]){
             case 'b':
                 {
                     flag['b'] = true;
-                    auto e = my_stoi(optarg);
-                    if (!e.has_value() || e.value() < 1 || e.value() > 65535){
-                        std::cout << std::format("invalid port: {}\n", optarg);
-                        return 1;
+                    if (static_cast<std::string_view>(optarg) == "auto"){
+                        bind_port = random_pri_iana_net_port();
+                    
+                    } else {
+                        auto e = my_stoi(optarg);
+                        if (!e.has_value() || e.value() < 1 || e.value() > 65535){
+                            std::cout << std::format("invalid port: {}\n", optarg);
+                            return 1;
+                        }
+                        bind_port = my_htons(e.value());
                     }
-                    bind_port = e.value();
                 }
                 break;          
             case 's':
@@ -150,7 +156,7 @@ int main(int argc, char* argv[]){
     if (flag['s']){
         std::cout << "it may take a while to test nat lifetime, please wait...\n";
 
-        clientImpl X{bind_addr, randomPort()}, Y{bind_addr, randomPort()};
+        clientImpl X{bind_addr, random_pri_iana_net_port()}, Y{bind_addr, random_pri_iana_net_port()};
         auto res = lifetime_test(X, Y, server_addr.value());
 
         if (res.has_value()){
@@ -160,7 +166,7 @@ int main(int argc, char* argv[]){
         }
     }
     if (flag['t']){
-        clientImpl c{bind_addr, flag['b'] ? my_htons(bind_port) : randomPort()};
+        clientImpl c{bind_addr, flag['b'] ? bind_port : random_pri_iana_net_port()};
 
         auto res = nat_test(c, server_addr.value());
     
