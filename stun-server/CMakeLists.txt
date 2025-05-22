@@ -7,14 +7,21 @@ project(Server LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -static-libstdc++ -static-libgcc -Wall -Wextra -g")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -static-libstdc++ -static-libgcc -Wall -Wextra")
 
 add_definitions(-DMY_LITTLE_ENDIAN=0)
 add_definitions(-DMY_BIG_ENDIAN=1)
 add_definitions(-DMY_BYTE_ORDER=MY_LITTLE_ENDIAN)
 
 
-set(CMAKE_BUILD_TYPE "Debug")
+if (NOT CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+    message(FATAL_ERROR "This project requires GCC. Detected compiler: ${CMAKE_CXX_COMPILER_ID}")
+endif()
+
+if (CMAKE_CXX_COMPILER_VERSION VERSION_LESS "13.0")
+    message(FATAL_ERROR "GCC version must be at least 13.0 to support full C++23 features. Detected version: ${CMAKE_CXX_COMPILER_VERSION}")
+endif()
+
 
 
 

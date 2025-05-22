@@ -6,7 +6,7 @@
           "type": "cppdbg",
           "request": "launch",
           "program": "${workspaceRoot}/build/stun-client",
-          "args": ["195.208.107.138:3478", "-t", "-l"],
+          "args": ["195.208.107.138:3478","-b","11451", "-t", "-l"],
           "stopAtEntry": false,
           "cwd": "${workspaceFolder}",
           "MIMode": "gdb",

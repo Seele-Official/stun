@@ -1,5 +1,6 @@
 #include "stun.h"
 #include "stunAttribute.h"
+#include "random.h"
 #include <format>
 
 constexpr std::array<uint32_t, 256> crc32_table() {
@@ -56,7 +57,7 @@ stunMessage::stunMessage(uint16_t type) {
     this->endptr = data + sizeof(stunHeader);
 
     for (size_t i = 0; i < 12; i++) {
-        header->transactionID.data[i] = random<uint8_t>(0, 255);
+        header->txn_id.data[i] = random<uint8_t>(0, 255);
     }
 }
 
@@ -106,7 +107,7 @@ stunMessage& stunMessage::operator=(stunMessage&& other) noexcept {
     return *this;
 }
 
-bool stunMessage::isValid(uint8_t* p) {
+bool stunMessage::is_valid(uint8_t* p) {
     if (*p & 0b11000000) return false;
 
     stunHeader* h = reinterpret_cast<stunHeader*>(p);
@@ -118,13 +119,13 @@ bool stunMessage::isValid(uint8_t* p) {
 }
 std::string stunMessage::toString() const {
     std::string str;
-    str += std::format("STUN MESSAGE: type: {}, length: {}, magicCookie: {}, transactionID: {}\n", 
+    str += std::format("STUN MESSAGE: type: {}, length: {}, magic_cookie: {}, txn_id: {}\n", 
         tohex(my_ntohs(this->header->type)), 
         my_ntohs(this->header->length), 
         my_ntohl(this->header->magicCookie), 
-        std::string(this->getTransactionID())
+        std::string(this->get_txn_id())
     );
-    for (auto& attr : this->getAttributes()){
+    for (auto& attr : this->get_attrs()){
         switch (attr->type){
             case stun::attribute::MAPPED_ADDRESS:
                 {

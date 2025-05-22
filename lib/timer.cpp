@@ -2,11 +2,11 @@
 
 
 
-void Timer::worker(std::stop_token st){
+void timer::worker(std::stop_token st){
     while(!st.stop_requested()){
         std::unique_lock lock{m};
         if(tasks.empty()){
-            cv.wait(lock, [&]{
+            cv.wait_until(lock, std::chrono::steady_clock::now() + 100ms, [&]{
                 return !tasks.empty() || st.stop_requested();
             });
             continue;
@@ -30,7 +30,7 @@ void Timer::worker(std::stop_token st){
 }
 
 
-bool Timer::cancel(std::coroutine_handle<> handle){
+bool timer::cancel(std::coroutine_handle<> handle){
     std::lock_guard lock{m};
 
     for (auto& it : tasks){

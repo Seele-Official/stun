@@ -1,7 +1,6 @@
 #pragma once
-#include "stun.h"
 #include <cstdint>
-
+#include "net_core.h"
 namespace stun {
     namespace attribute {
         // should be understood

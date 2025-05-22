@@ -145,12 +145,15 @@ public:
     }
 };
 inline static wsainiter wsa{};
+using socket_t = SOCKET;
+#elif defined(__linux__)
+using socket_t = int;
 #endif
 
 
 class udpv4{
 private:
-    int socketfd;
+    socket_t socketfd;
 public:
     explicit udpv4();
     udpv4(const udpv4&) = delete;

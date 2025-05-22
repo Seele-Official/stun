@@ -10,33 +10,33 @@
 #include <type_traits>
 #include <utility>
 #include "async.h"
-class Logger {
+class logger {
 private:
-    bool enabled_;
-    std::mutex mutex_;    
-    std::ostream* output_;
+    bool enabled;
+    std::mutex mutex;    
+    std::ostream* output;
 public:
-    inline explicit Logger() : enabled_{false}, output_{&std::cout} {}
+    inline explicit logger() : enabled{false}, output{&std::cout} {}
 
-    inline ~Logger() {
-        if (output_ != &std::cout) {
-            delete output_;
+    inline ~logger() {
+        if (output != &std::cout) {
+            delete output;
         }
     }
 
-    inline static Logger& instance() {
-        static Logger inst;
+    inline static logger& instance() {
+        static logger inst;
         return inst;
     }
 
     inline void set_enable(bool enabled) {
-        enabled_ = enabled;
+        this->enabled = enabled;
     }
     inline void set_output(std::ostream& os) {
-        output_ = &os;
+        this->output = &os;
     }
     inline void set_output_file(std::string_view filename) {
-        output_ = new std::ofstream{filename.data()};
+        this->output = new std::ofstream{filename.data()};
     }
 
 
@@ -49,9 +49,9 @@ public:
 
     template<typename... args_t>
     void async_log(fmt_lrefer_t<args_t...> fmt, args_t&&... args) {
-        if (!enabled_) return;
+        if (!enabled) return;
 
-        async(&Logger::log<rv_refer_t<args_t>&...>,
+        async(&logger::log<rv_refer_t<args_t>&...>,
             this,
             std::move(fmt), 
             std::forward<args_t>(args)...
@@ -60,57 +60,57 @@ public:
     }
 
     void async_log(const std::string& str) {
-        if (!enabled_) return;
+        if (!enabled) return;
 
         async(
-            static_cast<void(Logger::*)(const std::string&)>(&Logger::log), 
+            static_cast<void(logger::*)(const std::string&)>(&logger::log), 
             this, str
         );
     }
 
     void async_log(std::string&& str) {
-        if (!enabled_) return;
+        if (!enabled) return;
 
         async(
-            static_cast<void(Logger::*)(const std::string&)>(&Logger::log), 
+            static_cast<void(logger::*)(const std::string&)>(&logger::log), 
             this, std::move(str)
         );
     }
 
     template<typename... args_t>
     void log(const std::format_string<args_t...>& fmt, args_t&&... args) {
-        if (!enabled_) return;
-        std::lock_guard lock(mutex_);
+        if (!enabled) return;
+        std::lock_guard lock(mutex);
         std::format_to(
-            std::ostreambuf_iterator{*output_}, 
+            std::ostreambuf_iterator{*output}, 
             fmt, 
             std::forward<args_t>(args)...
         );
     }
 
     void log(const std::string& str) {
-        if (!enabled_) return;
-        std::lock_guard lock(mutex_);
-        *output_ << str;
+        if (!enabled) return;
+        std::lock_guard lock(mutex);
+        *output << str;
     }
 
     void log(std::string&& str) {
-        if (!enabled_) return;
-        std::lock_guard lock(mutex_);
-        *output_ << str;
+        if (!enabled) return;
+        std::lock_guard lock(mutex);
+        *output << str;
     }
 
     void log(const std::string_view& str) {
-        if (!enabled_) return;
-        std::lock_guard lock(mutex_);
-        *output_ << str;
+        if (!enabled) return;
+        std::lock_guard lock(mutex);
+        *output << str;
     }
 
     template<typename T>
     auto& operator<<(T&& value) {
-        if (!enabled_) return *this;
-        std::lock_guard lock(mutex_);
-        *output_ << value;
+        if (!enabled) return *this;
+        std::lock_guard lock(mutex);
+        *output << value;
         return *this;
     } 
 
@@ -118,6 +118,6 @@ public:
 };
 
 
-#define LOG Logger::instance()
+#define LOG logger::instance()
 
 

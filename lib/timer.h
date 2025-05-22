@@ -1,18 +1,27 @@
 #pragma once
 #include "log.h"
 #include "net_core.h"
-#include <cstddef>
+#include <chrono>
 #include <coroutine>
 #include <thread>
 #include <condition_variable>
+#include <type_traits>
+template <typename T, template <typename...> class Template>
+struct is_specialization_of : std::false_type {};
+
+template <template <typename...> class Template, typename... Args>
+struct is_specialization_of<Template<Args...>, Template> : std::true_type {};
+
+template <typename T, template <typename...> class Template>
+constexpr bool is_specialization_of_v = is_specialization_of<T, Template>::value;
+
+using std::chrono_literals::operator""ms;
 
 
-#define TIMER Timer::get_instance()
+#define TIMER timer::get_instance()
 class delay_task;
-class Timer {
+class timer {
 private:
-    using time_point = std::chrono::steady_clock::time_point;
-    using ms = std::chrono::milliseconds;
     std::jthread thread;
     std::condition_variable cv;
     std::mutex m;
@@ -27,17 +36,19 @@ private:
         inline task(std::coroutine_handle<> handle) : handle{handle} {}
     };
 
-    std::map<time_point, task> tasks;
+    std::map<std::chrono::steady_clock::time_point, task> tasks;
     void worker(std::stop_token st);
 
 public:
 
 
-    static inline Timer& get_instance(){
-        static Timer instance{};
+    static inline timer& get_instance(){
+        static timer instance{};
         return instance;
     }
-    inline bool submit(ms delay, std::coroutine_handle<> handle){
+    template<typename duration_t>
+        requires is_specialization_of_v<duration_t, std::chrono::duration>
+    inline bool submit(duration_t delay, std::coroutine_handle<> handle){
         std::lock_guard lock{m};
         tasks.emplace(std::chrono::steady_clock::now() + delay, task{handle});
         LOG.log("submitting task: {}\n", tohex(handle.address()));
@@ -45,8 +56,9 @@ public:
         return true;
     }
 
-
-    inline bool repeat(ms delay, std::coroutine_handle<> handle){
+    template<typename duration_t>
+        requires is_specialization_of_v<duration_t, std::chrono::duration>
+    inline bool repeat(duration_t delay, std::coroutine_handle<> handle){
         tasks.emplace(std::chrono::steady_clock::now() + delay, task{handle});
         LOG.log("repeat task: {}\n", tohex(handle.address()));
         cv.notify_one();
@@ -55,9 +67,9 @@ public:
 
     bool cancel(std::coroutine_handle<> handle);
     
-    inline explicit Timer() : thread{&Timer::worker, this}, tasks{} {}
+    inline explicit timer() : thread{&timer::worker, this}, tasks{} {}
 
-    inline ~Timer(){
+    inline ~timer(){
         thread.request_stop();
         cv.notify_one();
     }
@@ -115,29 +127,33 @@ public:
         }
     }
 };
-
+template<typename duration_t>
+    requires is_specialization_of_v<duration_t, std::chrono::duration>
 struct delay_awaiter{
-    size_t delay;
+    duration_t delay;
 
     bool await_ready() { return false; }
 
     void await_suspend(std::coroutine_handle<> handle) {
-        TIMER.submit(std::chrono::milliseconds{delay}, handle);
+        TIMER.submit(delay, handle);
     }
 
     void await_resume() {}
-    inline explicit delay_awaiter(size_t delay): delay{delay}{}
+
+    inline explicit delay_awaiter(duration_t delay): delay{delay}{}
 };
+template<typename duration_t>
+    requires is_specialization_of_v<duration_t, std::chrono::duration>
 struct repeat_awaiter{
-    size_t delay;
+    duration_t delay;
     bool await_ready() { return false; }
 
     void await_suspend(std::coroutine_handle<> handle) {
-        TIMER.repeat(std::chrono::milliseconds{delay}, handle);
+        TIMER.repeat(delay, handle);
     }
 
     void await_resume() {}
-    inline explicit repeat_awaiter(size_t delay): delay{delay}{}
+    inline explicit repeat_awaiter(duration_t delay): delay{delay}{}
 };
 
 // class repeat_task{

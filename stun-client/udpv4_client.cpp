@@ -2,6 +2,7 @@
 #include "net_core.h"
 #include "stun.h"
 #include "timer.h"
+#include <chrono>
 #include <cstddef>
 
 class udpv4_client : public client<udpv4_client, ipv4info>{
@@ -19,12 +20,12 @@ private:
             uint8_t buffer[buffer_size];
             ipv4info ipinfo;
             // check validity
-            if (udp.recvfrom(ipinfo, buffer, buffer_size).has_value() && stunMessage::isValid(buffer)){
+            if (udp.recvfrom(ipinfo, buffer, buffer_size).has_value() && stunMessage::is_valid(buffer)){
                                 
                 auto msg = stunMessage{buffer};
                 LOG.log("received from {}:{} to:{}\n{}", my_inet_ntoa(ipinfo.net_address), my_ntohs(ipinfo.net_port), my_ntohs(my_addr.net_port), msg.toString());
 
-                this->onResponse(transaction_res_t{ipinfo, std::move(msg)});
+                this->onResponse(std::move(ipinfo), std::move(msg));
             }
         }
     }
@@ -34,8 +35,9 @@ private:
 
 
     delay_task request(const ipv4info& ip, const stunMessage& msg){
-        constexpr uint64_t RTO = 500, retry = 2;
-        uint64_t delay = 0;
+        constexpr uint64_t retry = 2;
+        constexpr std::chrono::milliseconds RTO = 500ms;
+        std::chrono::milliseconds delay = 0ms;
         co_await delay_awaiter{delay};
         for (size_t i = 0; i < retry; i++){
             udp.sendto(ip, msg.data_ptr(), msg.size());
@@ -44,7 +46,7 @@ private:
             co_await repeat_awaiter{delay};
         }
 
-        this->onTimeout(msg.getTransactionID());
+        this->onTimeout(msg.get_txn_id());
         co_return;
     };
 

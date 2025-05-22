@@ -4,16 +4,15 @@
 #include <cstring>
 #include <vector>
 #include <expected>
-#include "random.h"
 #include "net_core.h"
 
 
 
 
-struct transactionID_t {
+struct txn_id_t {
     uint8_t data[12];
-    auto operator<=>(const transactionID_t&) const = default;
-    transactionID_t(const transactionID_t&) = default;
+    auto operator<=>(const txn_id_t&) const = default;
+    txn_id_t(const txn_id_t&) = default;
     operator std::string() const {
         return tohex(*this);
     }
@@ -24,7 +23,7 @@ struct stunHeader {
     uint16_t type;
     uint16_t length;
     uint32_t magicCookie;
-    transactionID_t transactionID;
+    txn_id_t txn_id;
 };
 
 namespace stun {
@@ -56,8 +55,8 @@ public:
         : header(header), attributes(std::move(attributes)) {}
 
     inline const stunHeader* getHeader() const { return header; }
-    inline const transactionID_t& getTransactionID() const { return header->transactionID; }
-    inline const std::vector<stunAttribute*>& getAttributes() const { return attributes; }
+    inline const txn_id_t& get_txn_id() const { return header->txn_id; }
+    inline const std::vector<stunAttribute*>& get_attrs() const { return attributes; }
     inline const stunAttribute* operator[](size_t index) const { return attributes[index]; }
     inline size_t size() const { return my_ntohs(header->length) + sizeof(stunHeader); }
     inline const uint8_t* data() const { return reinterpret_cast<const uint8_t*>(header); }
@@ -84,8 +83,8 @@ public:
     stunMessage& operator=(const stunMessage&) = delete;
     stunMessage& operator=(stunMessage&& other) noexcept;
 
-    inline const transactionID_t& getTransactionID() const { return header->transactionID; }
-    inline const std::vector<stunAttribute*>& getAttributes() const { return attributes; }
+    inline const txn_id_t& get_txn_id() const { return header->txn_id; }
+    inline const std::vector<stunAttribute*>& get_attrs() const { return attributes; }
     inline const uint8_t* data_ptr() const { return data; }
     inline size_t size() const { return endptr - data; }
     inline bool empty() const { return header == nullptr; }
@@ -103,10 +102,10 @@ public:
     template <is_stunAttribute... attribute_t>
     std::tuple<attribute_t*...> find();
 
-    inline uint16_t getType() const { return header->type; }
+    inline uint16_t get_type() const { return header->type; }
     std::string toString() const;
 
-    static bool isValid(uint8_t* p);
+    static bool is_valid(uint8_t* p);
 };
 
 template <is_stunAttribute attribute_t>

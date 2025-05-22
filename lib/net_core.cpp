@@ -6,8 +6,6 @@
 #include <iphlpapi.h>
 #include <system_error>
 
-#pragma comment(lib, "Ws2_32.lib")
-#pragma comment(lib, "Iphlpapi.lib")
 
 
 udpv4::udpv4(){
@@ -20,7 +18,7 @@ udpv4::udpv4(){
 
 
 udpv4::~udpv4(){
-    if (socketfd != -1)
+    if (socketfd != INVALID_SOCKET)
         closesocket(socketfd);
     WSACleanup();
 }
