@@ -66,8 +66,12 @@ public:
     }
 
     bool cancel(std::coroutine_handle<> handle);
-    
-    inline explicit timer() : thread{&timer::worker, this}, tasks{} {}
+
+    inline explicit timer() : thread{
+            [this](std::stop_token st){
+                this->worker(st);
+            }
+        }, tasks{} {}
 
     inline ~timer(){
         thread.request_stop();

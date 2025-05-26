@@ -53,7 +53,9 @@ public:
 
     threadpool(){
         for(auto& t: threads){
-            t = std::jthread(&threadpool::worker, this);
+            t = std::jthread([this](std::stop_token st){
+                this->worker(st);
+            });
         }
     }
 

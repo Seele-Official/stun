@@ -1,5 +1,6 @@
 #pragma once
 #include <cstdint>
+#include <type_traits>
 #include "net_core.h"
 namespace stun {
     namespace attribute {
@@ -44,7 +45,7 @@ concept is_stunAttribute = std::is_base_of_v<stunAttribute, attribute_t> && (siz
 struct stunAttribute {
     uint16_t type;
     uint16_t length;
-    uint8_t value[0];
+
 
     explicit stunAttribute(uint16_t type, uint16_t length) : type{type}, length{length} {}
 
@@ -53,7 +54,9 @@ struct stunAttribute {
     attribute_t* as(){
         return reinterpret_cast<attribute_t*>(this);
     }
-
+    uint8_t* get_value_ptr() {
+        return reinterpret_cast<uint8_t*>(this) + sizeof(stunAttribute);
+    }
     constexpr static uint16_t getid(){ return 0;}
 };
 

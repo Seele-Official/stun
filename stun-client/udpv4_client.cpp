@@ -30,7 +30,11 @@ private:
         }
     }
     void start_listener(){
-        listener_thread = std::jthread{&udpv4_client::listener, this};
+        listener_thread = std::jthread{
+            [this](std::stop_token st){
+                this->listener(st);
+            }
+        };
     }  
 
 

@@ -183,7 +183,7 @@ std::string stunMessage::toString() const {
                 break;
             default:
                 {
-                    str += std::format("   UNKNOWN ATTRIBUTE: type: {}, length: {}, value: {}\n", tohex(attr->type), my_ntohs(attr->length), tohex(attr->value, my_ntohs(attr->length)));
+                    str += std::format("   UNKNOWN ATTRIBUTE: type: {}, length: {}, value: {}\n", tohex(attr->type), my_ntohs(attr->length), tohex(attr->get_value_ptr(), my_ntohs(attr->length)));
 
                 }
 

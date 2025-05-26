@@ -1,7 +1,7 @@
 #include "nat_test.h"
 #include "net_core.h"
+#include "opts.h"
 #include <cstdint>
-#include <getopt.h> 
 #include <iostream>
 #include <string>
 #include <string_view>
@@ -36,99 +36,102 @@ int main(int argc, char* argv[]){
     SetConsoleOutputCP(65001);
     #endif
 
-    opterr = 0;
-    struct option opts[] = {
-        {"help", no_argument, nullptr, 'h'},
-        {"query-all-addr", no_argument, nullptr, 'q'},
-        {"build-binding", required_argument, nullptr, 'b'},
-        {"nat-type", no_argument, nullptr, 't'},
-        {"nat-lifetime", no_argument, nullptr, 's'},
-        {"interface_index", required_argument, nullptr, 'i'},
-        {"log", no_argument, nullptr, 'l'}
-    };
+    opts options = {{
+        {"--help", ruler_type::no_argument, "-h"},
+        {"--query-all-addr", ruler_type::no_argument, "-q"},
+        {"--build-binding", ruler_type::optional_argument, "-b"},
+        {"--nat-type", ruler_type::no_argument, "-t"},
+        {"--nat-lifetime", ruler_type::no_argument, "-s"},
+        {"--interface_index", ruler_type::required_argument, "-i"},
+        {"--log", ruler_type::no_argument, "-l"}
+    }};
 
     bool flag[256] = {};
-
     uint32_t interface_index = 0;
     uint16_t bind_port = 0;
-    for (int opt; (opt = getopt_long(argc, argv, "qhb:ltsi:", opts, nullptr)) != -1;){
-        switch (opt)
-        {
-   
-            case 'h':
-                {
+    
+    positional_argument p_args;
+
+    auto parser = options.parse(argc, argv);
+    for (auto&& item : parser) {
+        if (!item) {
+            std::cout << "Error: " << item.error() << "\n";
+            return 1;
+        }
+
+        std::visit([&](auto&& arg) {
+            using T = std::decay_t<decltype(arg)>;
+            
+            if constexpr (std::is_same_v<T, no_argument>) {
+                if (arg.long_name == "--help") {
                     std::cout << std::format("Usage: {} <server_addr>\n options:\n", argv[0]);
-                    std::cout << "  -b, --build-binding <bind_port>/auto: build binding by specified port\n";
+                    std::cout << "  -b, --build-binding <bind_port>?: build binding by specified port\n";
                     std::cout << "  -i, --interface_index <index>: specify network interface index\n";
                     std::cout << "  -t, --nat-type: test nat type\n";
                     std::cout << "  -s, --nat-lifetime: test nat lifetime\n";
                     std::cout << "  -q, --query-all-addr: query all device ip\n";
                     std::cout << "  -l, --log: enable log\n";
+                    std::exit(0);
                 }
-                return 0;
-
-            case 'q':
-                {
+                else if (arg.long_name == "--query-all-addr") {
                     auto res = query_all_device_ip();
                     for (auto& [index, addr] : res){
                         auto& [name, ip] = addr;
                         std::cout << std::format("[{:0>2}] {}: {}\n", index, reinterpret_cast<const char*>(name.c_str()), my_inet_ntoa(ip));
 
-                    }    
+                    }   
+                    std::exit(0);
                 }
-                return 0;            
-            case 'i':
-                {
-                    flag['i'] = true;
-                    auto e = my_stoi(optarg);
-                    if (!e.has_value()){
-                        std::cout << std::format("invalid interface index: {}\n", optarg);
-                        return 1;
-                    }
-                    interface_index = e.value();
+                else if (arg.long_name == "--nat-type") {
+                    flag['t'] = true;
                 }
-                break;              
-            case 'b':
-                {
-                    flag['b'] = true;
-                    if (static_cast<std::string_view>(optarg) == "auto"){
-                        bind_port = random_pri_iana_net_port();
-                    
-                    } else {
-                        auto e = my_stoi(optarg);
-                        if (!e.has_value() || e.value() < 1 || e.value() > 65535){
-                            std::cout << std::format("invalid port: {}\n", optarg);
-                            return 1;
-                        }
-                        bind_port = my_htons(e.value());
-                    }
+                else if (arg.long_name == "--nat-lifetime") {
+                    flag['s'] = true;
                 }
-                break;          
-            case 's':
-                flag['s'] = true;
-                break;
-            case 't':
-                flag['t'] = true;
-                break;
-
-            case 'l':
-                {
+                else if (arg.long_name == "--log") {
                     LOG.set_enable(true);
                     LOG.set_output_file("114514.log");
                 }
-                break;
-            default:
-                std::cout << std::format("unknown option: \"-{}\", please use \"-h\" for help\n", static_cast<char>(optopt));
-                return 1;
-        }
-
+            }
+            else if constexpr (std::is_same_v<T, required_argument>) {
+                if (arg.long_name == "--interface_index") {
+                    flag['i'] = true;
+                    auto e = my_stoi(arg.arg);
+                    if (!e.has_value()) {
+                        std::cout << std::format("invalid interface index: {}\n", arg.arg);
+                        std::exit(1);
+                    }
+                    interface_index = e.value();
+                }
+            } 
+            else if constexpr (std::is_same_v<T, optional_argument>) {
+                if (arg.long_name == "--build-binding") {
+                    flag['b'] = true;
+                    if (arg.arg.has_value()) {
+                        auto e = my_stoi(arg.arg.value());
+                        if (!e.has_value() || e.value() < 1 || e.value() > 65535) {
+                            std::cout << std::format("invalid port: {}\n", arg.arg.value());
+                            std::exit(1);
+                        }
+                        bind_port = my_htons(e.value());
+                    } else {
+                        bind_port = random_pri_iana_net_port();
+                    }
+                }
+            }
+            else if constexpr (std::is_same_v<T, positional_argument>) {
+                p_args = std::move(arg);
+            }
+        }, *item);
     }
+
+
 
 
     std::expected<ipv4info, std::string> server_addr;
     
-    if (optind < argc){
-        server_addr = parse_addr(argv[optind]);
+    if (p_args.args.size() == 1){
+        server_addr = parse_addr(*p_args.args.begin());
         if (!server_addr.has_value()){
             std::cout << server_addr.error() << std::endl;
             return 1;
