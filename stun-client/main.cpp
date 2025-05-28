@@ -1,10 +1,12 @@
 #include "nat_test.h"
 #include "net_core.h"
 #include "opts.h"
+#include "visit_var.h"
 #include <cstdint>
 #include <iostream>
 #include <string>
 #include <string_view>
+#include <utility>
 
 std::expected<ipv4info, std::string> parse_addr(std::string_view addr){
 
@@ -35,22 +37,23 @@ int main(int argc, char* argv[]){
     SetConsoleCP(65001);
     SetConsoleOutputCP(65001);
     #endif
-
-    opts options = {{
-        {"--help", ruler_type::no_argument, "-h"},
-        {"--query-all-addr", ruler_type::no_argument, "-q"},
-        {"--build-binding", ruler_type::optional_argument, "-b"},
-        {"--nat-type", ruler_type::no_argument, "-t"},
-        {"--nat-lifetime", ruler_type::no_argument, "-s"},
-        {"--interface_index", ruler_type::required_argument, "-i"},
-        {"--log", ruler_type::no_argument, "-l"}
-    }};
+    opts options = {
+        {
+            ruler::no_arg("--help", "-h"),
+            ruler::no_arg("--query-all-addr", "-q"),
+            ruler::opt_arg("--build-binding", "-b"),
+            ruler::no_arg("--nat-type", "-t"),
+            ruler::no_arg("--nat-lifetime", "-s"),
+            ruler::req_arg("--interface_index", "-i"),
+            ruler::no_arg("--log", "-l")
+        }
+    };
 
     bool flag[256] = {};
     uint32_t interface_index = 0;
     uint16_t bind_port = 0;
     
-    positional_argument p_args;
+    pos_arg p_args;
 
     auto parser = options.parse(argc, argv);
     for (auto&& item : parser) {
@@ -58,11 +61,8 @@ int main(int argc, char* argv[]){
             std::cout << "Error: " << item.error() << "\n";
             return 1;
         }
-
-        std::visit([&](auto&& arg) {
-            using T = std::decay_t<decltype(arg)>;
-            
-            if constexpr (std::is_same_v<T, no_argument>) {
+        visit_var(item.value(), 
+            [&](const no_arg& arg) {
                 if (arg.long_name == "--help") {
                     std::cout << std::format("Usage: {} <server_addr>\n options:\n", argv[0]);
                     std::cout << "  -b, --build-binding <bind_port>?: build binding by specified port\n";
@@ -92,8 +92,8 @@ int main(int argc, char* argv[]){
                     LOG.set_enable(true);
                     LOG.set_output_file("114514.log");
                 }
-            }
-            else if constexpr (std::is_same_v<T, required_argument>) {
+            },
+            [&](const req_arg& arg) {
                 if (arg.long_name == "--interface_index") {
                     flag['i'] = true;
                     auto e = my_stoi(arg.arg);
@@ -103,8 +103,8 @@ int main(int argc, char* argv[]){
                     }
                     interface_index = e.value();
                 }
-            } 
-            else if constexpr (std::is_same_v<T, optional_argument>) {
+            },
+            [&](const opt_arg& arg) {
                 if (arg.long_name == "--build-binding") {
                     flag['b'] = true;
                     if (arg.arg.has_value()) {
@@ -118,11 +118,11 @@ int main(int argc, char* argv[]){
                         bind_port = random_pri_iana_net_port();
                     }
                 }
-            }
-            else if constexpr (std::is_same_v<T, positional_argument>) {
+            },
+            [&](const pos_arg& arg) {
                 p_args = std::move(arg);
             }
-        }, *item);
+        );
     }
 
 

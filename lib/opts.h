@@ -3,6 +3,7 @@
 #include <generator>
 #include <optional>
 #include <string_view>
+#include <type_traits>
 #include <variant>
 #include <list>
 #include <expected>
@@ -13,44 +14,62 @@ enum class ruler_type {
     optional_argument
 };
 
-struct ruler{
-    std::string_view short_name;
-    std::string_view long_name;
-    ruler_type type;
 
-    consteval ruler(std::string_view ln, ruler_type t, std::string_view sn = "") : short_name(sn), long_name(ln), type(t) {
-        #define throw_if(condition, message) \
-            if (condition)  \
-                std::terminate(), message; \
-                // throw message; // if exceptions were allowed
+namespace ruler {
+    struct ruler{
+        std::string_view short_name;
+        std::string_view long_name;
+        ruler_type type;
 
-        if (!sn.empty()){
-            throw_if( !sn.starts_with("-"), "Short option must start with '-'");
+        consteval ruler(std::string_view ln, ruler_type t, std::string_view sn = "") : short_name(sn), long_name(ln), type(t) {
+            #define throw_if(condition, message) \
+                if (condition)  \
+                    std::terminate(), message; \
+                    // throw message; // if exceptions were allowed
+
+            if (!sn.empty()){
+                throw_if(sn.size() != 2, "Short option must be exactly 2 characters");
+                throw_if(!sn.starts_with("-"), "Short option must start with '-'");
+            }
+            throw_if(ln.size() <= 3, "Long option must be at least 4 characters");
+            throw_if(!ln.starts_with("--"), "Long option must start with '--'");
         }
-        throw_if(ln.empty(), "Long option must not be empty");
-        throw_if(!ln.starts_with("--"), "Long option must start with '--'");
-    }
-};
 
-struct no_argument {
+    };        
+
+    consteval ruler no_arg(std::string_view ln, std::string_view sn = "") {
+        return ruler(ln, ruler_type::no_argument, sn);
+    }
+
+    consteval ruler req_arg(std::string_view ln, std::string_view sn = "") {
+        return ruler(ln, ruler_type::required_argument, sn);
+    }
+
+    consteval ruler opt_arg(std::string_view ln, std::string_view sn = "") {
+        return ruler(ln, ruler_type::optional_argument, sn);
+    }
+}
+
+
+struct no_arg {
     std::string_view short_name;
     std::string_view long_name;
 };
 
-struct required_argument {
+struct req_arg {
     std::string_view short_name;
     std::string_view long_name;
     std::string_view arg;
 };
 
 
-struct optional_argument {
+struct opt_arg {
     std::string_view short_name;
     std::string_view long_name;
     std::optional<std::string_view> arg;
 };
 
-struct positional_argument {
+struct pos_arg {
     std::list<std::string_view> args;
 };
 
@@ -58,17 +77,19 @@ template <size_t N>
 class opts{
 public:
     using item = std::variant<
-        no_argument,
-        required_argument,
-        optional_argument,
-        positional_argument
+        no_arg,
+        req_arg,
+        opt_arg,
+        pos_arg
     >;
 
-    ruler rs[N];
+    ruler::ruler rs[N];
+
+
     std::generator<std::expected<item, std::string>> parse(int argc, char** argv) {
         std::list<std::string_view> args{argv + 1, argv + argc};
 
-        for (const ruler& r : rs) {
+        for (const ruler::ruler& r : rs) {
             switch (r.type) {
                 case ruler_type::no_argument:{
                     auto it = std::ranges::find_if(args, [&](const std::string_view& arg) {
@@ -76,7 +97,7 @@ public:
                     });
                     if (it != args.end()) {
                         args.erase(it);
-                        co_yield no_argument{r.short_name, r.long_name};
+                        co_yield no_arg{r.short_name, r.long_name};
                     }
                 }
                 break;
@@ -88,7 +109,7 @@ public:
                         if (std::next(it) != args.end() && !(*std::next(it)).starts_with('-')) {
                             std::string_view arg_value = *std::next(it);
                             args.erase(it, std::next(it, 2));
-                            co_yield required_argument{r.short_name, r.long_name, arg_value};
+                            co_yield req_arg{r.short_name, r.long_name, arg_value};
                         } else {
                             co_yield std::unexpected{"Required argument missing for " + std::string(r.short_name)};
                         }
@@ -108,13 +129,13 @@ public:
                         } else {
                             args.erase(it);
                         }
-                        co_yield optional_argument{r.short_name, r.long_name, arg_value};
+                        co_yield opt_arg{r.short_name, r.long_name, arg_value};
                     }
                 }
                 break;
             }
         }
 
-        co_yield positional_argument{std::move(args)};
+        co_yield pos_arg{std::move(args)};
     }
 };
