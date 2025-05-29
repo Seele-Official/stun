@@ -1,6 +1,10 @@
 #include "stun.h"
 #include "stunAttribute.h"
 #include "random.h"
+#include <bit>
+#include <cstddef>
+#include <cstdint>
+#include <cstdlib>
 #include <format>
 
 constexpr std::array<uint32_t, 256> crc32_table() {
@@ -33,24 +37,13 @@ uint32_t fingerPrint::crc32_bitwise(const uint8_t* data, size_t len) {
 
 
 
-stunMessage_view::stunMessage_view(const uint8_t* p) : header(reinterpret_cast<const stunHeader*>(p)) {
-    uint8_t* ptr = const_cast<uint8_t*>(p) + sizeof(stunHeader);
-    uint8_t* endptr = ptr + my_ntohs(header->length);
-
-    while (ptr < endptr) {
-        stun_attr* attribute = reinterpret_cast<stun_attr*>(ptr);
-        attributes.emplace_back(attribute);
-
-        auto len = sizeof(stun_attr) + my_ntohs(attribute->length);
-        if (len % 4 != 0) len += 4 - len % 4;
-        ptr += len;
-    }
-}
 
 
 stunMessage::stunMessage(uint16_t type) {
-    this->data = new uint8_t[548]();
-    this->header = reinterpret_cast<stunHeader*>(data);
+    this->data = (std::byte*) std::aligned_alloc(alignof(stunHeader), 548);
+    
+    
+    this->header = new (this->data) stunHeader{};
     this->header->type = type;
     this->header->length = 0;
     this->header->magicCookie = stun::MAGIC_COOKIE;
@@ -61,18 +54,21 @@ stunMessage::stunMessage(uint16_t type) {
     }
 }
 
-stunMessage::stunMessage(const uint8_t* p) {
-    const stunHeader* h = reinterpret_cast<const stunHeader*>(p);
-    size_t size = sizeof(stunHeader) + my_ntohs(h->length);
-    this->data = new uint8_t[size];
-    std::memcpy(this->data, h, size);
-    this->header = reinterpret_cast<stunHeader*>(this->data);
-    this->endptr = this->data + size;
+stunMessage::stunMessage(const std::byte* p) {
+    stunHeader tmpHeader;
+    std::memcpy(&tmpHeader, p, sizeof(stunHeader));
+    size_t size = sizeof(stunHeader) + my_ntohs(tmpHeader.length);
 
-    uint8_t* ptr = this->data + sizeof(stunHeader);
+    
+    this->data = (std::byte*) std::aligned_alloc(alignof(stunHeader), 548);
+    std::memcpy(this->data, p, size);
+    this->header = std::launder(reinterpret_cast<stunHeader*>(this->data));
+    this->endptr = this->data + sizeof(stunHeader) + my_ntohs(this->header->length);
+
+    auto ptr = this->data + sizeof(stunHeader);
 
     while (ptr < this->endptr) {
-        stun_attr* attribute = reinterpret_cast<stun_attr*>(ptr);
+        stun_attr* attribute = std::launder(reinterpret_cast<stun_attr*>(ptr));
         attributes.emplace_back(attribute);
 
         auto len = sizeof(stun_attr) + my_ntohs(attribute->length);
@@ -89,12 +85,12 @@ stunMessage::stunMessage(stunMessage&& other) noexcept
 }
 
 stunMessage::~stunMessage() {
-    if (data) delete[] data;
+    if (data) std::free(data);
 }
 
 stunMessage& stunMessage::operator=(stunMessage&& other) noexcept {
     if (this != &other) {
-        if (data) delete[] data;
+        if (data) std::free(data);
         data = other.data;
         header = other.header;
         attributes = std::move(other.attributes);
@@ -107,8 +103,8 @@ stunMessage& stunMessage::operator=(stunMessage&& other) noexcept {
     return *this;
 }
 
-bool stunMessage::is_valid(uint8_t* p) {
-    if (*p & 0b11000000) return false;
+bool stunMessage::is_valid(std::byte* p) {
+    if (static_cast<uint8_t>(*p) & 0b11000000) return false;
 
     stunHeader* h = reinterpret_cast<stunHeader*>(p);
     if (h->magicCookie != stun::MAGIC_COOKIE) return false;

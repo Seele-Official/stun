@@ -17,7 +17,7 @@ private:
     void listener(std::stop_token st){
         while(!st.stop_requested()){
             constexpr size_t buffer_size = 1024;
-            uint8_t buffer[buffer_size];
+            alignas(stunHeader) std::byte buffer[buffer_size];
             ipv4info ipinfo;
             // check validity
             if (udp.recvfrom(ipinfo, buffer, buffer_size).has_value() && stunMessage::is_valid(buffer)){

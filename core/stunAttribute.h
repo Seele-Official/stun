@@ -38,11 +38,11 @@ namespace stun {
     constexpr uint16_t E500_SERVER_ERROR = my_htons(0x0500);
 
 }
-struct stun_attr;
+struct alignas(4) stun_attr;
 template <typename attribute_t>
 concept is_stunAttribute = std::is_base_of_v<stun_attr, attribute_t> && (sizeof(attribute_t) % 4 == 0);
 
-struct stun_attr {
+struct alignas(4) stun_attr {
     uint16_t type;
     uint16_t length;
 

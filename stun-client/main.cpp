@@ -45,7 +45,7 @@ int main(int argc, char* argv[]){
             ruler::no_arg("--nat-type", "-t"),
             ruler::no_arg("--nat-lifetime", "-s"),
             ruler::req_arg("--interface_index", "-i"),
-            ruler::no_arg("--log", "-l")
+            ruler::opt_arg("--log", "-l")
         }
     };
 
@@ -62,7 +62,7 @@ int main(int argc, char* argv[]){
             return 1;
         }
         visit_var(item.value(), 
-            [&](const no_arg& arg) {
+            [&](no_arg& arg) {
                 if (arg.long_name == "--help") {
                     std::cout << std::format("Usage: {} <server_addr>\n options:\n", argv[0]);
                     std::cout << "  -b, --build-binding <bind_port>?: build binding by specified port\n";
@@ -89,7 +89,7 @@ int main(int argc, char* argv[]){
                     flag['s'] = true;
                 }
             },
-            [&](const req_arg& arg) {
+            [&](req_arg& arg) {
                 if (arg.long_name == "--interface_index") {
                     flag['i'] = true;
                     auto e = my_stoi(arg.value);
@@ -100,7 +100,7 @@ int main(int argc, char* argv[]){
                     interface_index = e.value();
                 }
             },
-            [&](const opt_arg& arg) {
+            [&](opt_arg& arg) {
                 if (arg.long_name == "--build-binding") {
                     flag['b'] = true;
                     if (arg.value.has_value()) {
@@ -122,7 +122,7 @@ int main(int argc, char* argv[]){
                     }
                 }
             },
-            [&](const pos_arg& arg) {
+            [&](pos_arg& arg) {
                 p_args = std::move(arg);
             }
         );
