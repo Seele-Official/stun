@@ -7,7 +7,7 @@
 #include <coroutine>
 
 template <size_t pool_size>
-class threadpool{
+class thread_pool{
 private:
     std::jthread threads[pool_size];
 
@@ -41,7 +41,7 @@ private:
 
 public:
     static auto& get_instance(){
-        static threadpool instance;
+        static thread_pool instance;
         return instance;
     } 
 
@@ -51,7 +51,7 @@ public:
         cv.notify_one();
     }
 
-    threadpool(){
+    thread_pool(){
         for(auto& t: threads){
             t = std::jthread([this](std::stop_token st){
                 this->worker(st);
@@ -59,7 +59,7 @@ public:
         }
     }
 
-    ~threadpool(){
+    ~thread_pool(){
         for(auto& t: threads){
             t.request_stop();
         }
@@ -70,7 +70,7 @@ public:
 
 
 
-#define THREADPOOL threadpool<1>::get_instance()
+#define THREADPOOL thread_pool<1>::get_instance()
 
 struct threadpool_awaiter{
     bool await_ready() { return false; }

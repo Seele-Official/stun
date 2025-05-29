@@ -70,7 +70,7 @@ int main(int argc, char* argv[]){
                     std::cout << "  -t, --nat-type: test nat type\n";
                     std::cout << "  -s, --nat-lifetime: test nat lifetime\n";
                     std::cout << "  -q, --query-all-addr: query all device ip\n";
-                    std::cout << "  -l, --log: enable log\n";
+                    std::cout << "  -l, --log <file_name>?: enable log\n";
                     std::exit(0);
                 }
                 else if (arg.long_name == "--query-all-addr") {
@@ -88,17 +88,13 @@ int main(int argc, char* argv[]){
                 else if (arg.long_name == "--nat-lifetime") {
                     flag['s'] = true;
                 }
-                else if (arg.long_name == "--log") {
-                    LOG.set_enable(true);
-                    LOG.set_output_file("114514.log");
-                }
             },
             [&](const req_arg& arg) {
                 if (arg.long_name == "--interface_index") {
                     flag['i'] = true;
-                    auto e = my_stoi(arg.arg);
+                    auto e = my_stoi(arg.value);
                     if (!e.has_value()) {
-                        std::cout << std::format("invalid interface index: {}\n", arg.arg);
+                        std::cout << std::format("invalid interface index: {}\n", arg.value);
                         std::exit(1);
                     }
                     interface_index = e.value();
@@ -107,15 +103,22 @@ int main(int argc, char* argv[]){
             [&](const opt_arg& arg) {
                 if (arg.long_name == "--build-binding") {
                     flag['b'] = true;
-                    if (arg.arg.has_value()) {
-                        auto e = my_stoi(arg.arg.value());
+                    if (arg.value.has_value()) {
+                        auto e = my_stoi(arg.value.value());
                         if (!e.has_value() || e.value() < 1 || e.value() > 65535) {
-                            std::cout << std::format("invalid port: {}\n", arg.arg.value());
+                            std::cout << std::format("invalid port: {}\n", arg.value.value());
                             std::exit(1);
                         }
                         bind_port = my_htons(e.value());
                     } else {
                         bind_port = random_pri_iana_net_port();
+                    }
+                } else if (arg.long_name == "--log") {
+                    LOG.set_enable(true);
+                    if (arg.value.has_value()) {
+                        LOG.set_output_file(arg.value.value());
+                    } else {
+                        LOG.set_output_file("114514.log");
                     }
                 }
             },
@@ -130,8 +133,8 @@ int main(int argc, char* argv[]){
 
     std::expected<ipv4info, std::string> server_addr;
     
-    if (p_args.args.size() == 1){
-        server_addr = parse_addr(*p_args.args.begin());
+    if (p_args.values.size() == 1){
+        server_addr = parse_addr(*p_args.values.begin());
         if (!server_addr.has_value()){
             std::cout << server_addr.error() << std::endl;
             return 1;

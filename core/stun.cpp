@@ -38,10 +38,10 @@ stunMessage_view::stunMessage_view(const uint8_t* p) : header(reinterpret_cast<c
     uint8_t* endptr = ptr + my_ntohs(header->length);
 
     while (ptr < endptr) {
-        stunAttribute* attribute = reinterpret_cast<stunAttribute*>(ptr);
+        stun_attr* attribute = reinterpret_cast<stun_attr*>(ptr);
         attributes.emplace_back(attribute);
 
-        auto len = sizeof(stunAttribute) + my_ntohs(attribute->length);
+        auto len = sizeof(stun_attr) + my_ntohs(attribute->length);
         if (len % 4 != 0) len += 4 - len % 4;
         ptr += len;
     }
@@ -72,10 +72,10 @@ stunMessage::stunMessage(const uint8_t* p) {
     uint8_t* ptr = this->data + sizeof(stunHeader);
 
     while (ptr < this->endptr) {
-        stunAttribute* attribute = reinterpret_cast<stunAttribute*>(ptr);
+        stun_attr* attribute = reinterpret_cast<stun_attr*>(ptr);
         attributes.emplace_back(attribute);
 
-        auto len = sizeof(stunAttribute) + my_ntohs(attribute->length);
+        auto len = sizeof(stun_attr) + my_ntohs(attribute->length);
         if (len % 4 != 0) len += 4 - len % 4;
         ptr += len;
     }

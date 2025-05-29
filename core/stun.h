@@ -28,13 +28,13 @@ struct stunHeader {
 
 namespace stun {
 
-    namespace messagetype {
+    namespace msg_type {
         constexpr uint16_t REQUEST = my_htons(0x0000);
         constexpr uint16_t INDICATION = my_htons(0x0010);
         constexpr uint16_t SUCCESS_RESPONSE = my_htons(0x0100);
         constexpr uint16_t ERROR_RESPONSE = my_htons(0x0110);
     }
-    namespace messagemethod{
+    namespace msg_method{
         constexpr uint16_t BINDING = my_htons(0x0001);
     }
 
@@ -47,17 +47,17 @@ namespace stun {
 class stunMessage_view {
 private:
     const stunHeader* header;
-    std::vector<stunAttribute*> attributes;
+    std::vector<stun_attr*> attributes;
 
 public:
     explicit stunMessage_view(const uint8_t* p);
-    explicit stunMessage_view(stunHeader* header, std::vector<stunAttribute*> attributes) 
+    explicit stunMessage_view(stunHeader* header, std::vector<stun_attr*> attributes) 
         : header(header), attributes(std::move(attributes)) {}
 
     inline const stunHeader* getHeader() const { return header; }
     inline const txn_id_t& get_txn_id() const { return header->txn_id; }
-    inline const std::vector<stunAttribute*>& get_attrs() const { return attributes; }
-    inline const stunAttribute* operator[](size_t index) const { return attributes[index]; }
+    inline const std::vector<stun_attr*>& get_attrs() const { return attributes; }
+    inline const stun_attr* operator[](size_t index) const { return attributes[index]; }
     inline size_t size() const { return my_ntohs(header->length) + sizeof(stunHeader); }
     inline const uint8_t* data() const { return reinterpret_cast<const uint8_t*>(header); }
 };
@@ -66,7 +66,7 @@ class stunMessage {
 private:
     uint8_t* data;
     stunHeader* header;
-    std::vector<stunAttribute*> attributes;
+    std::vector<stun_attr*> attributes;
     uint8_t* endptr;
 
     inline void setLength(uint16_t length) { header->length = my_htons(length); }
@@ -84,7 +84,7 @@ public:
     stunMessage& operator=(stunMessage&& other) noexcept;
 
     inline const txn_id_t& get_txn_id() const { return header->txn_id; }
-    inline const std::vector<stunAttribute*>& get_attrs() const { return attributes; }
+    inline const std::vector<stun_attr*>& get_attrs() const { return attributes; }
     inline const uint8_t* data_ptr() const { return data; }
     inline size_t size() const { return endptr - data; }
     inline bool empty() const { return header == nullptr; }
@@ -115,7 +115,7 @@ bool stunMessage::append(attribute_t* attribute) {
     }
 
     std::memcpy(endptr, attribute, sizeof(attribute_t));
-    this->attributes.emplace_back(reinterpret_cast<stunAttribute*>(this->endptr));
+    this->attributes.emplace_back(reinterpret_cast<stun_attr*>(this->endptr));
     this->endptr += sizeof(attribute_t);
     this->setLength(endptr - reinterpret_cast<uint8_t*>(header) - sizeof(stunHeader));
     return true;
@@ -128,7 +128,7 @@ bool stunMessage::emplace(args_t&&... args) {
     }
 
     new (this->endptr) attribute_t(std::forward<args_t>(args)...);
-    this->attributes.emplace_back(reinterpret_cast<stunAttribute*>(this->endptr));
+    this->attributes.emplace_back(reinterpret_cast<stun_attr*>(this->endptr));
     this->endptr += sizeof(attribute_t);
     this->setLength(endptr - reinterpret_cast<uint8_t*>(header) - sizeof(stunHeader));
     return true;

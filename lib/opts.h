@@ -59,18 +59,18 @@ struct no_arg {
 struct req_arg {
     std::string_view short_name;
     std::string_view long_name;
-    std::string_view arg;
+    std::string_view value;
 };
 
 
 struct opt_arg {
     std::string_view short_name;
     std::string_view long_name;
-    std::optional<std::string_view> arg;
+    std::optional<std::string_view> value;
 };
 
 struct pos_arg {
-    std::list<std::string_view> args;
+    std::list<std::string_view> values;
 };
 
 template <size_t N>

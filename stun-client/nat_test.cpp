@@ -6,7 +6,7 @@
 #include <expected>
 std::expected<uint8_t, std::string> maping_test(clientImpl& c, ipv4info& server_addr, ipv4info& server_altaddr, ipv4info& first_x_maddr){
 
-    stunMessage ipmaping_test_msg(stun::messagemethod::BINDING | stun::messagetype::REQUEST);
+    stunMessage ipmaping_test_msg(stun::msg_method::BINDING | stun::msg_type::REQUEST);
     
     auto res = c.async_req(
         ipv4info{
@@ -36,7 +36,7 @@ std::expected<uint8_t, std::string> maping_test(clientImpl& c, ipv4info& server_
     }
 
 
-    stunMessage portmaping_test_msg(stun::messagemethod::BINDING | stun::messagetype::REQUEST);
+    stunMessage portmaping_test_msg(stun::msg_method::BINDING | stun::msg_type::REQUEST);
     auto res2 = c.async_req(server_altaddr, portmaping_test_msg)
         .get_return_rvalue();
 
@@ -60,7 +60,7 @@ std::expected<uint8_t, std::string> maping_test(clientImpl& c, ipv4info& server_
 
 uint8_t filtering_test(clientImpl& c, ipv4info& server_addr){
 
-    stunMessage ipfiltering_test_msg(stun::messagemethod::BINDING | stun::messagetype::REQUEST);
+    stunMessage ipfiltering_test_msg(stun::msg_method::BINDING | stun::msg_type::REQUEST);
     
     ipfiltering_test_msg.emplace<changeRequest>(stun::CHANGE_IP_FLAG | stun::CHANGE_PORT_FLAG);
 
@@ -70,7 +70,7 @@ uint8_t filtering_test(clientImpl& c, ipv4info& server_addr){
         return endpoint_independent_filtering;
     }
 
-    stunMessage portfiltering_test_msg(stun::messagemethod::BINDING | stun::messagetype::REQUEST);
+    stunMessage portfiltering_test_msg(stun::msg_method::BINDING | stun::msg_type::REQUEST);
     portfiltering_test_msg.emplace<changeRequest>(stun::CHANGE_PORT_FLAG);
 
     return c.async_req(server_addr, portfiltering_test_msg)
@@ -81,7 +81,7 @@ uint8_t filtering_test(clientImpl& c, ipv4info& server_addr){
 
 std::expected<nat_type, std::string> nat_test(clientImpl &c, ipv4info server_addr){
 
-    stunMessage udp_test_msg(stun::messagemethod::BINDING | stun::messagetype::REQUEST);
+    stunMessage udp_test_msg(stun::msg_method::BINDING | stun::msg_type::REQUEST);
 
     auto res = c.async_req(server_addr, udp_test_msg)
                     .get_return_rvalue();
@@ -129,7 +129,7 @@ std::expected<nat_type, std::string> nat_test(clientImpl &c, ipv4info server_add
 }
 
 std::expected<ipv4info, std::string> build_binding(clientImpl& c, ipv4info& server_addr){
-    stunMessage ip_test_msg(stun::messagemethod::BINDING | stun::messagetype::REQUEST);
+    stunMessage ip_test_msg(stun::msg_method::BINDING | stun::msg_type::REQUEST);
     auto res = c.async_req(server_addr, ip_test_msg)
                     .get_return_rvalue();
 
@@ -154,7 +154,7 @@ std::expected<uint64_t, std::string> lifetime_test(clientImpl& X, clientImpl& Y,
 
     while (true) {
         LOG.async_log("Testing lifetime={}s\n", lifetime);
-        stunMessage X_msg(stun::messagemethod::BINDING | stun::messagetype::REQUEST);
+        stunMessage X_msg(stun::msg_method::BINDING | stun::msg_type::REQUEST);
         auto res = X.async_req(server_addr, X_msg).get_return_rvalue();
         if (!res.has_value()) return std::unexpected(res.error());
 
@@ -164,7 +164,7 @@ std::expected<uint64_t, std::string> lifetime_test(clientImpl& X, clientImpl& Y,
 
         std::this_thread::sleep_for(std::chrono::seconds(lifetime));
 
-        stunMessage Y_msg(stun::messagemethod::BINDING | stun::messagetype::REQUEST);
+        stunMessage Y_msg(stun::msg_method::BINDING | stun::msg_type::REQUEST);
         Y_msg.emplace<responsePort>(X_port);
         auto res2 = Y.async_req(server_addr, Y_msg).get_return_rvalue();
 
@@ -175,7 +175,7 @@ std::expected<uint64_t, std::string> lifetime_test(clientImpl& X, clientImpl& Y,
         }
 
         auto& Y_res = std::get<1>(res2.value());
-        if (Y_res.get_type() == (stun::messagetype::ERROR_RESPONSE | stun::messagemethod::BINDING)) {
+        if (Y_res.get_type() == (stun::msg_type::ERROR_RESPONSE | stun::msg_method::BINDING)) {
             auto err = Y_res.find_one<errorCode>();
             if (!err) return std::unexpected("Server error: Missing error code");
             
@@ -198,7 +198,7 @@ std::expected<uint64_t, std::string> lifetime_test(clientImpl& X, clientImpl& Y,
         uint64_t mid = low + (high - low) / 2;
         LOG.async_log("Testing lifetime={}s\n", mid);
 
-        stunMessage X_msg(stun::messagemethod::BINDING | stun::messagetype::REQUEST);
+        stunMessage X_msg(stun::msg_method::BINDING | stun::msg_type::REQUEST);
         auto res = X.async_req(server_addr, X_msg).get_return_rvalue();
         if (!res.has_value()) return std::unexpected(res.error());
 
@@ -208,7 +208,7 @@ std::expected<uint64_t, std::string> lifetime_test(clientImpl& X, clientImpl& Y,
 
         std::this_thread::sleep_for(std::chrono::seconds(mid));
 
-        stunMessage Y_msg(stun::messagemethod::BINDING | stun::messagetype::REQUEST);
+        stunMessage Y_msg(stun::msg_method::BINDING | stun::msg_type::REQUEST);
         Y_msg.emplace<responsePort>(X_port);
         auto res2 = Y.async_req(server_addr, Y_msg).get_return_rvalue();
 
@@ -216,7 +216,7 @@ std::expected<uint64_t, std::string> lifetime_test(clientImpl& X, clientImpl& Y,
             high = mid;
         } else {
             auto& Y_res = std::get<1>(res2.value());
-            if (Y_res.get_type() == (stun::messagetype::ERROR_RESPONSE | stun::messagemethod::BINDING)) {
+            if (Y_res.get_type() == (stun::msg_type::ERROR_RESPONSE | stun::msg_method::BINDING)) {
                 auto err = Y_res.find_one<errorCode>();
                 if (!err) return std::unexpected("Server error: Missing error code");
                 

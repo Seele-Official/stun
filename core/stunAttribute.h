@@ -38,16 +38,16 @@ namespace stun {
     constexpr uint16_t E500_SERVER_ERROR = my_htons(0x0500);
 
 }
-struct stunAttribute;
+struct stun_attr;
 template <typename attribute_t>
-concept is_stunAttribute = std::is_base_of_v<stunAttribute, attribute_t> && (sizeof(attribute_t) % 4 == 0);
+concept is_stunAttribute = std::is_base_of_v<stun_attr, attribute_t> && (sizeof(attribute_t) % 4 == 0);
 
-struct stunAttribute {
+struct stun_attr {
     uint16_t type;
     uint16_t length;
 
 
-    explicit stunAttribute(uint16_t type, uint16_t length) : type{type}, length{length} {}
+    explicit stun_attr(uint16_t type, uint16_t length) : type{type}, length{length} {}
 
 
     template<is_stunAttribute attribute_t>
@@ -55,12 +55,12 @@ struct stunAttribute {
         return reinterpret_cast<attribute_t*>(this);
     }
     uint8_t* get_value_ptr() {
-        return reinterpret_cast<uint8_t*>(this) + sizeof(stunAttribute);
+        return reinterpret_cast<uint8_t*>(this) + sizeof(stun_attr);
     }
     constexpr static uint16_t getid(){ return 0;}
 };
 
-struct ipv4_mappedAddress : public stunAttribute {
+struct ipv4_mappedAddress : public stun_attr {
     uint8_t zero;
     uint8_t family;
     uint16_t port;
@@ -68,7 +68,7 @@ struct ipv4_mappedAddress : public stunAttribute {
     constexpr static uint16_t getid(){ return stun::attribute::MAPPED_ADDRESS;}
 };
 
-struct ipv4_xor_mappedAddress : public stunAttribute {
+struct ipv4_xor_mappedAddress : public stun_attr {
     uint8_t zero;
     uint8_t family;
     uint16_t x_port;
@@ -76,7 +76,7 @@ struct ipv4_xor_mappedAddress : public stunAttribute {
     constexpr static uint16_t getid(){ return stun::attribute::XOR_MAPPED_ADDRESS;}
 };
 
-struct ipv4_responseOrigin : public stunAttribute {
+struct ipv4_responseOrigin : public stun_attr {
     uint8_t zero;
     uint8_t family;
     uint16_t port;
@@ -84,7 +84,7 @@ struct ipv4_responseOrigin : public stunAttribute {
     constexpr static uint16_t getid(){ return stun::attribute::RESPONSE_ORIGIN;}
 };
 
-struct ipv4_otherAddress : public stunAttribute {
+struct ipv4_otherAddress : public stun_attr {
     uint8_t zero;
     uint8_t family;
     uint16_t port;
@@ -92,33 +92,33 @@ struct ipv4_otherAddress : public stunAttribute {
     constexpr static uint16_t getid(){ return stun::attribute::OTHER_ADDRESS;}
 };
 
-struct changeRequest : public stunAttribute {
+struct changeRequest : public stun_attr {
     uint32_t flags;
     constexpr static uint16_t getid(){ return stun::attribute::CHANGE_REQUEST;}
     
     explicit changeRequest(uint32_t flags) : 
-        stunAttribute{stun::attribute::CHANGE_REQUEST, my_htons(sizeof(flags))},
+        stun_attr{stun::attribute::CHANGE_REQUEST, my_htons(sizeof(flags))},
         flags{flags} {}
 };
 
-struct softWare : public stunAttribute {
+struct softWare : public stun_attr {
     char value[0];
     constexpr static uint16_t getid(){ return stun::attribute::SOFTWARE;}
 };
 
 
-struct fingerPrint : public stunAttribute {
+struct fingerPrint : public stun_attr {
     uint32_t crc32;
     constexpr static uint16_t getid(){ return stun::attribute::FINGERPRINT;}
     explicit fingerPrint(uint32_t crc32) : 
-        stunAttribute{stun::attribute::FINGERPRINT, my_htons(sizeof(crc32))}, 
+        stun_attr{stun::attribute::FINGERPRINT, my_htons(sizeof(crc32))}, 
         crc32{crc32} {}
 
     static uint32_t crc32_bitwise(const uint8_t* data, size_t len);
 
 };
 
-struct errorCode : public stunAttribute {
+struct errorCode : public stun_attr {
     uint16_t zero;
     uint16_t error_code;
     char error_reason[0];
@@ -126,11 +126,11 @@ struct errorCode : public stunAttribute {
     constexpr static uint16_t getid(){ return stun::attribute::ERROR_CODE;}
 };
 
-struct responsePort : public stunAttribute {
+struct responsePort : public stun_attr {
     uint16_t port;
     uint16_t padding;
     constexpr static uint16_t getid(){ return stun::attribute::RESPONSE_PORT;}
     explicit responsePort(uint16_t port) : 
-        stunAttribute{stun::attribute::RESPONSE_PORT, my_htons(sizeof(port))}, 
+        stun_attr{stun::attribute::RESPONSE_PORT, my_htons(sizeof(port))}, 
         port{port} {}
 };
