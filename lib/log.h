@@ -51,7 +51,7 @@ public:
     void async_log(fmt_lrefer_t<args_t...> fmt, args_t&&... args) {
         if (!enabled) return;
 
-        async(&logger::log<rv_refer_t<args_t>&...>,
+        coro::async(&logger::log<rv_refer_t<args_t>&...>,
             this,
             std::move(fmt), 
             std::forward<args_t>(args)...
@@ -62,7 +62,7 @@ public:
     void async_log(const std::string& str) {
         if (!enabled) return;
 
-        async(
+        coro::async(
             static_cast<void(logger::*)(const std::string&)>(&logger::log), 
             this, str
         );
@@ -71,7 +71,7 @@ public:
     void async_log(std::string&& str) {
         if (!enabled) return;
 
-        async(
+        coro::async(
             static_cast<void(logger::*)(const std::string&)>(&logger::log), 
             this, std::move(str)
         );

@@ -30,18 +30,18 @@ struct stunHeader {
 };
 
 namespace stun {
-
+    using namespace math;
     namespace msg_type {
-        constexpr uint16_t REQUEST = my_htons(0x0000);
-        constexpr uint16_t INDICATION = my_htons(0x0010);
-        constexpr uint16_t SUCCESS_RESPONSE = my_htons(0x0100);
-        constexpr uint16_t ERROR_RESPONSE = my_htons(0x0110);
+        constexpr uint16_t REQUEST = hton<uint16_t>(0x0000);
+        constexpr uint16_t INDICATION = hton<uint16_t>(0x0010);
+        constexpr uint16_t SUCCESS_RESPONSE = hton<uint16_t>(0x0100);
+        constexpr uint16_t ERROR_RESPONSE = hton<uint16_t>(0x0110);
     }
     namespace msg_method{
-        constexpr uint16_t BINDING = my_htons(0x0001);
+        constexpr uint16_t BINDING = hton<uint16_t>(0x0001);
     }
 
-    constexpr uint32_t MAGIC_COOKIE = my_htonl(0x2112A442);
+    constexpr uint32_t MAGIC_COOKIE = hton<uint32_t>(0x2112A442);
 
 }
 
@@ -55,7 +55,7 @@ private:
     std::vector<stun_attr*> attributes;
     std::byte* endptr;
 
-    inline void setLength(uint16_t length) { header->length = my_htons(length); }
+    inline void setLength(uint16_t length) { header->length = math::hton<uint16_t>(length); }
 
 public:
     inline explicit stunMessage() : data{nullptr}, header{nullptr}, endptr{nullptr} {}

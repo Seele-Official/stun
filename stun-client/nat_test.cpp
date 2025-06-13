@@ -1,5 +1,6 @@
 #include "nat_test.h"
 #include "log.h"
+#include "net_core.h"
 #include "stun.h"
 #include "stunAttribute.h"
 #include <cstdint>
@@ -13,7 +14,7 @@ std::expected<uint8_t, std::string> maping_test(clientImpl& c, ipv4info& server_
             server_altaddr.net_address,
             server_addr.net_port
         }, ipmaping_test_msg)
-        .get_return_rvalue();
+        .get_as_rvalue();
     
     if (!res.has_value()){
         return std::unexpected(res.error());
@@ -38,7 +39,7 @@ std::expected<uint8_t, std::string> maping_test(clientImpl& c, ipv4info& server_
 
     stunMessage portmaping_test_msg(stun::msg_method::BINDING | stun::msg_type::REQUEST);
     auto res2 = c.async_req(server_altaddr, portmaping_test_msg)
-        .get_return_rvalue();
+        .get_as_rvalue();
 
     if (!res2.has_value()){
         return std::unexpected(res2.error());
@@ -65,7 +66,7 @@ uint8_t filtering_test(clientImpl& c, ipv4info& server_addr){
     ipfiltering_test_msg.emplace<changeRequest>(stun::CHANGE_IP_FLAG | stun::CHANGE_PORT_FLAG);
 
     if(c.async_req(server_addr, ipfiltering_test_msg)
-        .get_return_lvalue()
+        .get()
         .has_value()){
         return endpoint_independent_filtering;
     }
@@ -74,7 +75,7 @@ uint8_t filtering_test(clientImpl& c, ipv4info& server_addr){
     portfiltering_test_msg.emplace<changeRequest>(stun::CHANGE_PORT_FLAG);
 
     return c.async_req(server_addr, portfiltering_test_msg)
-        .get_return_lvalue()
+        .get()
         .has_value() ? 
         address_dependent_filtering : address_and_port_dependent_filtering;
 }
@@ -84,7 +85,7 @@ std::expected<nat_type, std::string> nat_test(clientImpl &c, ipv4info server_add
     stunMessage udp_test_msg(stun::msg_method::BINDING | stun::msg_type::REQUEST);
 
     auto res = c.async_req(server_addr, udp_test_msg)
-                    .get_return_rvalue();
+                    .get_as_rvalue();
 
     if (!res.has_value()) return std::unexpected(res.error());
 
@@ -131,7 +132,7 @@ std::expected<nat_type, std::string> nat_test(clientImpl &c, ipv4info server_add
 std::expected<ipv4info, std::string> build_binding(clientImpl& c, ipv4info& server_addr){
     stunMessage ip_test_msg(stun::msg_method::BINDING | stun::msg_type::REQUEST);
     auto res = c.async_req(server_addr, ip_test_msg)
-                    .get_return_rvalue();
+                    .get_as_rvalue();
 
     if (!res.has_value()) return std::unexpected(res.error());
 
@@ -155,7 +156,7 @@ std::expected<uint64_t, std::string> lifetime_test(clientImpl& X, clientImpl& Y,
     while (true) {
         LOG.async_log("Testing lifetime={}s\n", lifetime);
         stunMessage X_msg(stun::msg_method::BINDING | stun::msg_type::REQUEST);
-        auto res = X.async_req(server_addr, X_msg).get_return_rvalue();
+        auto res = X.async_req(server_addr, X_msg).get_as_rvalue();
         if (!res.has_value()) return std::unexpected(res.error());
 
         auto x_addr = std::get<1>(res.value()).find_one<ipv4_xor_mappedAddress>();
@@ -166,7 +167,7 @@ std::expected<uint64_t, std::string> lifetime_test(clientImpl& X, clientImpl& Y,
 
         stunMessage Y_msg(stun::msg_method::BINDING | stun::msg_type::REQUEST);
         Y_msg.emplace<responsePort>(X_port);
-        auto res2 = Y.async_req(server_addr, Y_msg).get_return_rvalue();
+        auto res2 = Y.async_req(server_addr, Y_msg).get_as_rvalue();
 
         if (!res2.has_value()) {
             high = lifetime;
@@ -182,7 +183,7 @@ std::expected<uint64_t, std::string> lifetime_test(clientImpl& X, clientImpl& Y,
             if (err->error_code == stun::E420_UNKNOWN_ATTRIBUTE) {
                 std::string err_msg = "Unsupported attributes:";
                 for (size_t i = 0; i < err->length/sizeof(uint16_t); i++) {
-                    err_msg += " 0x" + tohex(my_ntohs(err->unknown_attributes[i]));
+                    err_msg += tohex(math::ntoh(err->unknown_attributes[i]));
                 }
                 return std::unexpected(err_msg);
             }
@@ -199,7 +200,7 @@ std::expected<uint64_t, std::string> lifetime_test(clientImpl& X, clientImpl& Y,
         LOG.async_log("Testing lifetime={}s\n", mid);
 
         stunMessage X_msg(stun::msg_method::BINDING | stun::msg_type::REQUEST);
-        auto res = X.async_req(server_addr, X_msg).get_return_rvalue();
+        auto res = X.async_req(server_addr, X_msg).get_as_rvalue();
         if (!res.has_value()) return std::unexpected(res.error());
 
         auto x_addr = std::get<1>(res.value()).find_one<ipv4_xor_mappedAddress>();
@@ -210,7 +211,7 @@ std::expected<uint64_t, std::string> lifetime_test(clientImpl& X, clientImpl& Y,
 
         stunMessage Y_msg(stun::msg_method::BINDING | stun::msg_type::REQUEST);
         Y_msg.emplace<responsePort>(X_port);
-        auto res2 = Y.async_req(server_addr, Y_msg).get_return_rvalue();
+        auto res2 = Y.async_req(server_addr, Y_msg).get_as_rvalue();
 
         if (!res2.has_value()) {
             high = mid;

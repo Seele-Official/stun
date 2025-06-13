@@ -22,11 +22,11 @@ std::expected<ipv4info, std::string> parse_addr(std::string_view addr){
     if (!ipaddr.has_value()){
         return std::unexpected(std::format("parse ip error: {}", ipaddr.error()));
     }
-    auto portnum = my_stoi(port);
+    auto portnum = math::stoi(port);
     if (!portnum.has_value()){
         return std::unexpected(std::format("parse port error: unexpected char '{}'", tohex(portnum.error())));
     }
-    return ipv4info{ipaddr.value(), my_htons(portnum.value())};
+    return ipv4info{ipaddr.value(), math::hton<uint16_t>(portnum.value())};
 }
 
 
@@ -92,7 +92,7 @@ int main(int argc, char* argv[]){
             [&](req_arg& arg) {
                 if (arg.long_name == "--interface_index") {
                     flag['i'] = true;
-                    auto e = my_stoi(arg.value);
+                    auto e = math::stoi(arg.value);
                     if (!e.has_value()) {
                         std::cout << std::format("invalid interface index: {}\n", arg.value);
                         std::exit(1);
@@ -104,12 +104,12 @@ int main(int argc, char* argv[]){
                 if (arg.long_name == "--build-binding") {
                     flag['b'] = true;
                     if (arg.value.has_value()) {
-                        auto e = my_stoi(arg.value.value());
+                        auto e = math::stoi(arg.value.value());
                         if (!e.has_value() || e.value() < 1 || e.value() > 65535) {
                             std::cout << std::format("invalid port: {}\n", arg.value.value());
                             std::exit(1);
                         }
-                        bind_port = my_htons(e.value());
+                        bind_port = math::hton<uint16_t>(e.value());
                     } else {
                         bind_port = random_pri_iana_net_port();
                     }

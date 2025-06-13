@@ -1,41 +1,16 @@
 #include "stun.h"
+#include "net_core.h"
 #include "stunAttribute.h"
-#include "random.h"
-#include <bit>
+#include "math.h"
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
 #include <format>
 
-constexpr std::array<uint32_t, 256> crc32_table() {
-    constexpr uint32_t poly = 0xEDB88320; // 反射多项式
-    std::array<uint32_t, 256> table{};
-    for (uint32_t i = 0; i < 256; ++i) {
-        uint32_t crc = i;
-        for (int j = 0; j < 8; ++j) {
-        crc = (crc >> 1) ^ ((crc & 1) ? poly : 0);
-        }
-        table[i] = crc;
-    }
-    return table;
-}
-
-uint32_t fingerPrint::crc32_bitwise(const uint8_t* data, size_t len) {
-
-    static constexpr auto CRC32_TABLE = crc32_table();
-
-    uint32_t crc = 0xFFFFFFFF;
-    for (size_t i = 0; i < len; ++i) {
-        crc = (crc >> 8) ^ CRC32_TABLE[(crc ^ data[i]) & 0xFF];
-    }
-    return crc ^ 0xFFFFFFFF;
-}
 
 
 
-
-
-
+using namespace math;
 
 
 
@@ -57,13 +32,13 @@ stunMessage::stunMessage(uint16_t type) {
 stunMessage::stunMessage(const std::byte* p) {
     stunHeader tmpHeader;
     std::memcpy(&tmpHeader, p, sizeof(stunHeader));
-    size_t size = sizeof(stunHeader) + my_ntohs(tmpHeader.length);
+    size_t size = sizeof(stunHeader) + ntoh(tmpHeader.length);
 
     
     this->data = (std::byte*) std::aligned_alloc(alignof(stunHeader), 548);
     std::memcpy(this->data, p, size);
     this->header = std::launder(reinterpret_cast<stunHeader*>(this->data));
-    this->endptr = this->data + sizeof(stunHeader) + my_ntohs(this->header->length);
+    this->endptr = this->data + sizeof(stunHeader) + ntoh(this->header->length);
 
     auto ptr = this->data + sizeof(stunHeader);
 
@@ -71,8 +46,8 @@ stunMessage::stunMessage(const std::byte* p) {
         stun_attr* attribute = std::launder(reinterpret_cast<stun_attr*>(ptr));
         attributes.emplace_back(attribute);
 
-        auto len = sizeof(stun_attr) + my_ntohs(attribute->length);
-        if (len % 4 != 0) len += 4 - len % 4;
+        auto len = sizeof(stun_attr) + ntoh(attribute->length);
+        len = (len + 3) & ~3;
         ptr += len;
     }
 }
@@ -108,17 +83,17 @@ bool stunMessage::is_valid(std::byte* p) {
 
     stunHeader* h = reinterpret_cast<stunHeader*>(p);
     if (h->magicCookie != stun::MAGIC_COOKIE) return false;
-    if (my_ntohs(h->length) + sizeof(stunHeader) > 548) return false;
-    if (my_ntohs(h->length) % 4 != 0) return false;
+    if (ntoh(h->length) + sizeof(stunHeader) > 548) return false;
+    if (ntoh(h->length) % 4 != 0) return false;
 
     return true;
 }
 std::string stunMessage::toString() const {
     std::string str;
     str += std::format("STUN MESSAGE: type: {}, length: {}, magic_cookie: {}, txn_id: {}\n", 
-        tohex(my_ntohs(this->header->type)), 
-        my_ntohs(this->header->length), 
-        my_ntohl(this->header->magicCookie), 
+        tohex(ntoh(this->header->type)), 
+        ntoh(this->header->length), 
+        ntoh(this->header->magicCookie), 
         std::string(this->get_txn_id())
     );
     for (auto& attr : this->get_attrs()){
@@ -126,31 +101,31 @@ std::string stunMessage::toString() const {
             case stun::attribute::MAPPED_ADDRESS:
                 {
                     auto mappedaddress = attr->as<ipv4_mappedAddress>();
-                    str += std::format("   MAPPED_ADDRESS: {}:{}\n", my_inet_ntoa(mappedaddress->address), my_ntohs(mappedaddress->port));
+                    str += std::format("   MAPPED_ADDRESS: {}:{}\n", my_inet_ntoa(mappedaddress->address), ntoh(mappedaddress->port));
                 }
                 break;
             case stun::attribute::XOR_MAPPED_ADDRESS:
                 {
                     auto mappedaddress = attr->as<ipv4_xor_mappedAddress>();
-                    str += std::format("   XOR_MAPPED_ADDRESS: {}:{}\n", my_inet_ntoa(mappedaddress->x_address ^ stun::MAGIC_COOKIE), my_ntohs(mappedaddress->x_port ^ stun::MAGIC_COOKIE));
+                    str += std::format("   XOR_MAPPED_ADDRESS: {}:{}\n", my_inet_ntoa(mappedaddress->x_address ^ stun::MAGIC_COOKIE), ntoh(mappedaddress->x_port ^ stun::MAGIC_COOKIE));
                 }
                 break;
             case stun::attribute::RESPONSE_ORIGIN:
                 {
                     auto responseorigin = attr->as<ipv4_responseOrigin>();
-                    str += std::format("   RESPONSE_ORIGIN: {}:{}\n", my_inet_ntoa(responseorigin->address), my_ntohs(responseorigin->port));
+                    str += std::format("   RESPONSE_ORIGIN: {}:{}\n", my_inet_ntoa(responseorigin->address), ntoh(responseorigin->port));
                 }
                 break;
             case stun::attribute::OTHER_ADDRESS:
                 {
                     auto otherAddress = attr->as<ipv4_otherAddress>();
-                    str += std::format("   OTHER_ADDRESS: {}:{}\n", my_inet_ntoa(otherAddress->address), my_ntohs(otherAddress->port));
+                    str += std::format("   OTHER_ADDRESS: {}:{}\n", my_inet_ntoa(otherAddress->address), ntoh(otherAddress->port));
                 }
                 break;
             case stun::attribute::SOFTWARE:
                 {
                     auto software = attr->as<softWare>();
-                    str += std::format("   SOFTWARE: {}\n", std::string_view(software->value, my_ntohs(attr->length)));
+                    str += std::format("   SOFTWARE: {}\n", std::string_view(software->value, ntoh(attr->length)));
                 }
                 break;
             case stun::attribute::CHANGE_REQUEST:
@@ -168,22 +143,21 @@ std::string stunMessage::toString() const {
             case stun::attribute::ERROR_CODE:
                 {
                     auto errorcode = attr->as<errorCode>();
-                    str += std::format("   ERROR_CODE: code: {}, reason: {}\n", errorcode->error_code, std::string_view(errorcode->error_reason, my_ntohs(attr->length) - 4));
+                    str += std::format("   ERROR_CODE: code: {}, reason: {}\n", errorcode->error_code, std::string_view(errorcode->error_reason, ntoh(attr->length) - 4));
                 }
                 break;
             case stun::attribute::RESPONSE_PORT:
                 {
                     auto responseport = attr->as<responsePort>();
-                    str += std::format("   RESPONSE_PORT: {}\n", my_ntohs(responseport->port));
+                    str += std::format("   RESPONSE_PORT: {}\n", ntoh(responseport->port));
                 }
                 break;
             default:
                 {
-                    str += std::format("   UNKNOWN ATTRIBUTE: type: {}, length: {}, value: {}\n", tohex(attr->type), my_ntohs(attr->length), tohex(attr->get_value_ptr(), my_ntohs(attr->length)));
+                    str += std::format("   UNKNOWN ATTRIBUTE: type: {}, length: {}, value: {}\n", tohex(attr->type), ntoh(attr->length), tohex(attr->get_value_ptr(), ntoh(attr->length)));
 
                 }
 
-        
         }
     }
     str += "\n";

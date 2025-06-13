@@ -23,7 +23,7 @@ private:
             if (udp.recvfrom(ipinfo, buffer, buffer_size).has_value() && stunMessage::is_valid(buffer)){
                                 
                 auto msg = stunMessage{buffer};
-                LOG.log("received from {}:{} to:{}\n{}", my_inet_ntoa(ipinfo.net_address), my_ntohs(ipinfo.net_port), my_ntohs(my_addr.net_port), msg.toString());
+                LOG.log("received from {}:{} to:{}\n{}", my_inet_ntoa(ipinfo.net_address), math::ntoh(ipinfo.net_port), math::ntoh(my_addr.net_port), msg.toString());
 
                 this->onResponse(std::move(ipinfo), std::move(msg));
             }
@@ -38,16 +38,17 @@ private:
     }  
 
 
-    delay_task request(const ipv4info& ip, const stunMessage& msg){
+    coro::timer::delay_task request(const ipv4info& ip, const stunMessage& msg){
+        using std::chrono_literals::operator""ms; 
         constexpr uint64_t retry = 2;
         constexpr std::chrono::milliseconds RTO = 500ms;
         std::chrono::milliseconds delay = 0ms;
-        co_await delay_awaiter{delay};
+        co_await coro::timer::delay_awaiter{delay};
         for (size_t i = 0; i < retry; i++){
             udp.sendto(ip, msg.data_ptr(), msg.size());
-            LOG.async_log("sending from:{} to {}:{} \n{}", my_ntohs(my_addr.net_port), my_inet_ntoa(ip.net_address), my_ntohs(ip.net_port), msg.toString());
+            LOG.async_log("sending from:{} to {}:{} \n{}", math::ntoh(my_addr.net_port), my_inet_ntoa(ip.net_address), math::ntoh(ip.net_port), msg.toString());
             delay = delay*2 + RTO;
-            co_await repeat_awaiter{delay};
+            co_await coro::timer::delay_awaiter{delay};
         }
 
         this->onTimeout(msg.get_txn_id());

@@ -1,21 +1,15 @@
 #pragma once
+#include <concepts>
 #include <cstdint>
 #include <cstddef>
 #include <cstring>
 #include <format>
 #include <expected>
 #include <map>
-#include "random.h"
+#include <bit>
+#include "math.h"
 #include "log.h"
-constexpr std::expected<uint32_t, char> my_stoi(std::string_view str){
-    if (str.empty()) return std::unexpected{'\0'};
-    uint32_t num = 0;
-    for (auto c : str){
-        if (c < '0' || c > '9') return std::unexpected{c};
-        num = num * 10 + c - '0';
-    }
-    return num;
-}
+
 
 
 constexpr auto tohex(void* ptr, size_t size){
@@ -33,48 +27,6 @@ constexpr auto tohex(T struct_t){
 }
 
 
-#if MY_BYTE_ORDER == MY_BIG_ENDIAN
-constexpr uint32_t my_htonl(uint32_t hostlong) {
-    return hostlong;
-}
-
-constexpr uint16_t my_htons(uint16_t hostshort) {
-    return hostshort;
-}
-
-constexpr uint32_t my_ntohl(uint32_t netlong) {
-    return my_htonl(netlong);
-}
-
-constexpr uint16_t my_ntohs(uint16_t netshort) {
-    return my_htons(netshort);
-}
-
-
-
-#elif MY_BYTE_ORDER == MY_LITTLE_ENDIAN
-
-constexpr uint32_t my_htonl(uint32_t hostlong) {
-    return ((hostlong & 0x000000FF) << 24) |
-           ((hostlong & 0x0000FF00) << 8) |
-           ((hostlong & 0x00FF0000) >> 8) |
-           ((hostlong & 0xFF000000) >> 24);
-}
-
-constexpr uint16_t my_htons(uint16_t hostshort) {
-    return (hostshort >> 8) | (hostshort << 8);
-}
-
-constexpr uint32_t my_ntohl(uint32_t netlong) {
-    return my_htonl(netlong);
-}
-
-constexpr uint16_t my_ntohs(uint16_t netshort) {
-    return my_htons(netshort);
-}
-
-#endif
-
 constexpr std::expected<uint32_t, std::string> my_inet_addr(std::string_view ip) {
     uint32_t addr = 0;
     for (size_t i = 0; i < 3; i++) {
@@ -82,24 +34,24 @@ constexpr std::expected<uint32_t, std::string> my_inet_addr(std::string_view ip)
         if (pos == std::string_view::npos) {
             return std::unexpected{"missing '.'"};
         }
-        auto num = my_stoi(ip.substr(0, pos));
+        auto num = math::stoi(ip.substr(0, pos));
         if (!num.has_value()) {
             return std::unexpected{std::format("unexpected char: {}", tohex(num.error()))};
         }
         addr = (addr << 8) | num.value();
         ip.remove_prefix(pos + 1);
     }
-    auto num = my_stoi(ip);
+    auto num = math::stoi(ip);
     if (!num.has_value()) {
         return std::unexpected{std::format("unexpected char: {}", tohex(num.error()))};
     }
     addr = (addr << 8) | num.value();
 
-    return my_htonl(addr);
+    return math::hton(addr);
 }
 
 constexpr std::string my_inet_ntoa(uint32_t addr) {
-    addr = my_ntohl(addr);
+    addr = math::ntoh(addr);
     std::string ip;
     for (size_t i = 0; i < 4; i++) {
         ip.insert(0, std::to_string(addr & 0xFF));
@@ -117,7 +69,7 @@ struct ipv4info{
     auto operator<=>(const ipv4info&) const = default;
 
     auto toString() const {
-        return std::format("{}:{}", my_inet_ntoa(net_address), my_ntohs(net_port));
+        return std::format("{}:{}", my_inet_ntoa(net_address), math::ntoh(net_port));
     }
 
 };
@@ -182,5 +134,5 @@ uint32_t query_device_ip(uint32_t interface_index);
 std::map<uint32_t, std::tuple<std::u8string, uint32_t>> query_all_device_ip();
 
 inline uint16_t random_pri_iana_net_port() {
-    return my_htons(random<uint16_t>(32768, 65535));
+    return math::hton(math::random<uint16_t>(32768, 65535));
 }

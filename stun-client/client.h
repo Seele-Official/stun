@@ -95,14 +95,14 @@ protected:
         txn_manager::get_instance().onTimeout(txn_id);
     }
 private:
-    delay_task request(const ipinfo_t& ip, const stunMessage& msg){
+    coro::timer::delay_task request(const ipinfo_t& ip, const stunMessage& msg){
         co_return;
     }
 
 public:
 
     explicit client() = default;
-    lazy_task<typename txn_manager::expected_res_t> async_req(const ipinfo_t& ip, const stunMessage& msg){
+    coro::lazy_task<typename txn_manager::expected_res_t> async_req(const ipinfo_t& ip, const stunMessage& msg){
         typename txn_manager::reg_awaiter awaiter{msg.get_txn_id()};
 
         auto delaytask = static_cast<Derived*>(this)->request(ip, msg);

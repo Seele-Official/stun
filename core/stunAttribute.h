@@ -3,39 +3,40 @@
 #include <type_traits>
 #include "net_core.h"
 namespace stun {
+    using namespace math;
     namespace attribute {
         // should be understood
-        constexpr uint16_t MAPPED_ADDRESS = my_htons(0x0001);
-        constexpr uint16_t USERNAME = my_htons(0x0006);
-        constexpr uint16_t MESSAGE_INTEGRITY = my_htons(0x0008);
-        constexpr uint16_t ERROR_CODE = my_htons(0x0009);
-        constexpr uint16_t UNKNOWN_ATTRIBUTES = my_htons(0x000A);
-        constexpr uint16_t REALM = my_htons(0x0014);
-        constexpr uint16_t NONCE = my_htons(0x0015);
-        constexpr uint16_t XOR_MAPPED_ADDRESS = my_htons(0x0020);
+        constexpr uint16_t MAPPED_ADDRESS = hton<uint16_t>(0x0001);
+        constexpr uint16_t USERNAME = hton<uint16_t>(0x0006);
+        constexpr uint16_t MESSAGE_INTEGRITY = hton<uint16_t>(0x0008);
+        constexpr uint16_t ERROR_CODE = hton<uint16_t>(0x0009);
+        constexpr uint16_t UNKNOWN_ATTRIBUTES = hton<uint16_t>(0x000A);
+        constexpr uint16_t REALM = hton<uint16_t>(0x0014);
+        constexpr uint16_t NONCE = hton<uint16_t>(0x0015);
+        constexpr uint16_t XOR_MAPPED_ADDRESS = hton<uint16_t>(0x0020);
 
-        constexpr uint16_t CHANGE_REQUEST = my_htons(0x0003);
-        constexpr uint16_t PADDING = my_htons(0x0026);
-        constexpr uint16_t RESPONSE_PORT = my_htons(0x0027);
-        constexpr uint16_t RESPONSE_ORIGIN = my_htons(0x802B);
-        constexpr uint16_t OTHER_ADDRESS = my_htons(0x802C);
+        constexpr uint16_t CHANGE_REQUEST = hton<uint16_t>(0x0003);
+        constexpr uint16_t PADDING = hton<uint16_t>(0x0026);
+        constexpr uint16_t RESPONSE_PORT = hton<uint16_t>(0x0027);
+        constexpr uint16_t RESPONSE_ORIGIN = hton<uint16_t>(0x802B);
+        constexpr uint16_t OTHER_ADDRESS = hton<uint16_t>(0x802C);
 
 
 
         // don't have to be understood
-        constexpr uint16_t SOFTWARE = my_htons(0x8022);
-        constexpr uint16_t ALTERNATE_SERVER = my_htons(0x8023);
-        constexpr uint16_t FINGERPRINT = my_htons(0x8028);
+        constexpr uint16_t SOFTWARE = hton<uint16_t>(0x8022);
+        constexpr uint16_t ALTERNATE_SERVER = hton<uint16_t>(0x8023);
+        constexpr uint16_t FINGERPRINT = hton<uint16_t>(0x8028);
     }
-    constexpr uint32_t CHANGE_IP_FLAG = my_htonl(0x04);
-    constexpr uint32_t CHANGE_PORT_FLAG = my_htonl(0x02);
+    constexpr uint32_t CHANGE_IP_FLAG = hton<uint32_t>(0x04);
+    constexpr uint32_t CHANGE_PORT_FLAG = hton<uint32_t>(0x02);
 
-    constexpr uint16_t E300_TRY_ALTERNATE = my_htons(0x0300);
-    constexpr uint16_t E400_BAD_REQUEST = my_htons(0x0400);
-    constexpr uint16_t E401_UNAUTHORIZED = my_htons(0x0401);
-    constexpr uint16_t E420_UNKNOWN_ATTRIBUTE = my_htons(0x0420);
-    constexpr uint16_t E438_STALE_NONCE = my_htons(0x0438);
-    constexpr uint16_t E500_SERVER_ERROR = my_htons(0x0500);
+    constexpr uint16_t E300_TRY_ALTERNATE = hton<uint16_t>(0x0300);
+    constexpr uint16_t E400_BAD_REQUEST = hton<uint16_t>(0x0400);
+    constexpr uint16_t E401_UNAUTHORIZED = hton<uint16_t>(0x0401);
+    constexpr uint16_t E420_UNKNOWN_ATTRIBUTE = hton<uint16_t>(0x0420);
+    constexpr uint16_t E438_STALE_NONCE = hton<uint16_t>(0x0438);
+    constexpr uint16_t E500_SERVER_ERROR = hton<uint16_t>(0x0500);
 
 }
 struct alignas(4) stun_attr;
@@ -97,7 +98,7 @@ struct changeRequest : public stun_attr {
     constexpr static uint16_t getid(){ return stun::attribute::CHANGE_REQUEST;}
     
     explicit changeRequest(uint32_t flags) : 
-        stun_attr{stun::attribute::CHANGE_REQUEST, my_htons(sizeof(flags))},
+        stun_attr{stun::attribute::CHANGE_REQUEST, math::hton<uint16_t>(sizeof(flags))},
         flags{flags} {}
 };
 
@@ -111,10 +112,8 @@ struct fingerPrint : public stun_attr {
     uint32_t crc32;
     constexpr static uint16_t getid(){ return stun::attribute::FINGERPRINT;}
     explicit fingerPrint(uint32_t crc32) : 
-        stun_attr{stun::attribute::FINGERPRINT, my_htons(sizeof(crc32))}, 
+        stun_attr{stun::attribute::FINGERPRINT, math::hton<uint16_t>(sizeof(crc32))}, 
         crc32{crc32} {}
-
-    static uint32_t crc32_bitwise(const uint8_t* data, size_t len);
 
 };
 
@@ -131,6 +130,6 @@ struct responsePort : public stun_attr {
     uint16_t padding;
     constexpr static uint16_t getid(){ return stun::attribute::RESPONSE_PORT;}
     explicit responsePort(uint16_t port) : 
-        stun_attr{stun::attribute::RESPONSE_PORT, my_htons(sizeof(port))}, 
+        stun_attr{stun::attribute::RESPONSE_PORT, math::hton<uint16_t>(sizeof(port))}, 
         port{port} {}
 };
