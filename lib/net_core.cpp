@@ -1,4 +1,5 @@
 #include "net_core.h"
+#include "log.h"
 
 
 #if defined(_WIN32) || defined(_WIN64)
@@ -51,7 +52,7 @@ std::expected<size_t, udpv4_error> udpv4::recvfrom(ipv4info& src, void* buffer, 
     socklen_t src_addr_len = sizeof(src_addr);
     auto recv_size = ::recvfrom(socketfd, reinterpret_cast<char*>(buffer), buffer_size, 0, reinterpret_cast<sockaddr*>(&src_addr), &src_addr_len);
     if (recv_size == -1){
-        LOG.log("[ERROR] recvfrom() failed: {}\n", std::system_error(WSAGetLastError(), std::system_category()).what());
+        LOG("[ERROR] recvfrom() failed: {}\n", std::system_error(WSAGetLastError(), std::system_category()).what());
         return std::unexpected{udpv4_error::RECVFROM_ERROR};
     }
     src.net_address = src_addr.sin_addr.s_addr;
@@ -65,7 +66,7 @@ udpv4_error udpv4::sendto(const ipv4info& dest, const void* data, size_t size){
     addr.sin_addr.s_addr = dest.net_address;
     addr.sin_port = dest.net_port;
     if (::sendto(socketfd, reinterpret_cast<const char*>(data), size, 0, reinterpret_cast<sockaddr*>(&addr), sizeof(addr)) == -1){
-        LOG.log("[ERROR] sendto() failed: {}\n", std::system_error(WSAGetLastError(), std::system_category()).what());
+        LOG("[ERROR] sendto() failed: {}\n", std::system_error(WSAGetLastError(), std::system_category()).what());
         return udpv4_error::SENDTO_ERROR;
     }
     return udpv4_error{};
@@ -180,7 +181,7 @@ std::map<uint32_t, std::tuple<std::u8string, uint32_t>> query_all_device_ip(){
 udpv4::udpv4(){
     socketfd = socket(AF_INET, SOCK_DGRAM, 0);
     if (socketfd == -1){
-        LOG.log("[ERROR] socket() failed: {}\n", strerror(errno));
+        LOG("[ERROR] socket() failed: {}\n", strerror(errno));
         std::exit(1);
     }
 }
@@ -213,7 +214,7 @@ bool udpv4::bind(ipv4info info){
     addr.sin_addr.s_addr = info.net_address;
     addr.sin_port = info.net_port;
     if (::bind(socketfd, reinterpret_cast<sockaddr*>(&addr), sizeof(addr)) == -1){
-        LOG.log("[ERROR] bind() failed: {}\n", strerror(errno));
+        LOG("[ERROR] bind() failed: {}\n", strerror(errno));
         return false;
     }
     
@@ -222,7 +223,7 @@ bool udpv4::bind(ipv4info info){
 bool udpv4::set_timeout(uint32_t t){
     timeval timeout{t, 0};
     if (setsockopt(socketfd, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout)) == -1){
-        LOG.log("[ERROR] setsockopt() failed: {}\n", strerror(errno));
+        LOG("[ERROR] setsockopt() failed: {}\n", strerror(errno));
         return false;
     }
     return true;
@@ -232,7 +233,7 @@ std::expected<size_t, udpv4_error> udpv4::recvfrom(ipv4info& src, void* buffer, 
     socklen_t src_addr_len = sizeof(src_addr);
     ssize_t recv_size = ::recvfrom(socketfd, buffer, buffer_size, 0, reinterpret_cast<sockaddr*>(&src_addr), &src_addr_len);
     if (recv_size == -1){
-        LOG.log("[ERROR] recvfrom() failed: {}\n", strerror(errno));
+        LOG("[ERROR] recvfrom() failed: {}\n", strerror(errno));
         return std::unexpected{udpv4_error::RECVFROM_ERROR};
     }
     src.net_address = src_addr.sin_addr.s_addr;
@@ -246,7 +247,7 @@ udpv4_error udpv4::sendto(const ipv4info& dest, const void* data, size_t size){
     addr.sin_addr.s_addr = dest.net_address;
     addr.sin_port = dest.net_port;
     if (::sendto(socketfd, data, size, 0, reinterpret_cast<sockaddr*>(&addr), sizeof(addr)) == -1){
-        LOG.log("[ERROR] sendto() failed: {}\n", strerror(errno));
+        LOG("[ERROR] sendto() failed: {}\n", strerror(errno));
         return udpv4_error::SENDTO_ERROR;
     }
     return udpv4_error{};
@@ -257,7 +258,7 @@ udpv4_error udpv4::sendto(const ipv4info& dest, const void* data, size_t size){
 uint32_t query_device_ip(uint32_t interface_index){
     ifaddrs *ifAddrStruct = nullptr;
     if (getifaddrs(&ifAddrStruct) == -1) {
-        LOG.async_log("[ERROR] getifaddrs() failed: {}\n", strerror(errno));
+        ASYNC_LOG("[ERROR] getifaddrs() failed: {}\n", strerror(errno));
         return 0;
     }
 
@@ -279,7 +280,7 @@ std::map<uint32_t, std::tuple<std::u8string, uint32_t>> query_all_device_ip(){
     std::map<uint32_t, std::tuple<std::u8string, uint32_t>> res;
     ifaddrs *ifAddrStruct = nullptr;
     if (getifaddrs(&ifAddrStruct) == -1) {
-        LOG.async_log("[ERROR] getifaddrs() failed: {}\n", strerror(errno));
+        ASYNC_LOG("[ERROR] getifaddrs() failed: {}\n", strerror(errno));
         return res;
     }
 

@@ -1,4 +1,5 @@
 #pragma once
+#include <algorithm>
 #include <concepts>
 #include <random>
 #include <cstdint>
@@ -63,7 +64,22 @@ namespace math {
         return num;
     }
 
-
-    
+    template<std::integral T>
+    constexpr std::string itostr(T num) {
+        if (num == 0) return "0";
+        std::string str;
+        bool is_negative = false;
+        if (num < 0) {
+            is_negative = true;
+            num = -num;
+        }
+        while (num > 0) {
+            str.push_back('0' + (num % 10));
+            num /= 10;
+        }
+        if (is_negative) str.push_back('-');
+        std::reverse(str.begin(), str.end());
+        return str;
+    } 
 }
 

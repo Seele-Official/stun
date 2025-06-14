@@ -1,8 +1,7 @@
 #pragma once
-#include "async.h"
 #include "log.h"
 #include "stun.h"
-#include "timer.h"
+#include "coro/timer.h"
 #include <cstddef>
 #include <cstdint>
 #include <map>
@@ -14,12 +13,12 @@ public:
     class txn_manager{
     public:
         using expected_res_t = std::expected<
-                                    std::tuple<ipinfo_t, stunMessage>, 
+                                    std::tuple<ipinfo_t, stun::message>, 
                                     std::string
                                 >;
 
         struct reg_awaiter{
-            txn_id_t txn_id;
+            stun::txn_id_t txn_id;
             expected_res_t response;
             bool await_ready() const noexcept { return false; }
             void await_suspend(std::coroutine_handle<> handle) noexcept {
@@ -28,7 +27,7 @@ public:
             expected_res_t& await_resume(){
                 return response;
             }
-            reg_awaiter(txn_id_t id): txn_id{id} {}
+            reg_awaiter(stun::txn_id_t id): txn_id{id} {}
             
         };
 
@@ -41,7 +40,7 @@ public:
             txn_t(std::coroutine_handle<> handle,  reg_awaiter* awaiter): handle{handle}, awaiter{awaiter} {}
         };
 
-        std::map<txn_id_t, txn_t> txns;
+        std::map<stun::txn_id_t, txn_t> txns;
         std::mutex m;
     public:
         void register_txn(std::coroutine_handle<> handle, reg_awaiter* awaiter){
@@ -52,13 +51,13 @@ public:
                 std::forward_as_tuple(handle, awaiter));
         }
 
-        void onResponse(ipinfo_t&& ip, stunMessage&& msg){
+        void onResponse(ipinfo_t&& ip, stun::message&& msg){
 
 
             std::lock_guard lock{m};
             auto it = txns.find(msg.get_txn_id());
             if (it != txns.end()){
-                LOG.log("transaction {} on response\n", tohex(it->first));
+                LOG("transaction {} on response\n", tohex(it->first));
                 it->second.awaiter->response = std::move(std::make_tuple(std::move(ip), std::move(msg)));
                 it->second.handle.resume();
                 txns.erase(it);
@@ -66,12 +65,12 @@ public:
 
         }
 
-        void onTimeout(txn_id_t txn_id){
+        void onTimeout(stun::txn_id_t txn_id){
             std::lock_guard lock{m};
 
             auto it = txns.find(txn_id);
             if (it != txns.end()){
-                LOG.log("transaction {} on timeout\n", tohex(it->first));
+                LOG("transaction {} on timeout\n", tohex(it->first));
                 it->second.awaiter->response = std::unexpected("Timeout");
                 it->second.handle.resume();
                 txns.erase(it);
@@ -87,22 +86,22 @@ public:
 
     };
 protected:
-    inline void onResponse(ipinfo_t&& ip, stunMessage&& msg){
+    inline void onResponse(ipinfo_t&& ip, stun::message&& msg){
         txn_manager::get_instance().onResponse(std::move(ip), std::move(msg));
     }
 
-    inline void onTimeout(txn_id_t txn_id){
+    inline void onTimeout(stun::txn_id_t txn_id){
         txn_manager::get_instance().onTimeout(txn_id);
     }
 private:
-    coro::timer::delay_task request(const ipinfo_t& ip, const stunMessage& msg){
+    coro::timer::delay_task request(const ipinfo_t& ip, const stun::message& msg){
         co_return;
     }
 
 public:
 
     explicit client() = default;
-    coro::lazy_task<typename txn_manager::expected_res_t> async_req(const ipinfo_t& ip, const stunMessage& msg){
+    coro::lazy_task<typename txn_manager::expected_res_t> async_req(const ipinfo_t& ip, const stun::message& msg){
         typename txn_manager::reg_awaiter awaiter{msg.get_txn_id()};
 
         auto delaytask = static_cast<Derived*>(this)->request(ip, msg);

@@ -114,11 +114,11 @@ int main(int argc, char* argv[]){
                         bind_port = random_pri_iana_net_port();
                     }
                 } else if (arg.long_name == "--log") {
-                    LOG.set_enable(true);
+                    LOGGER.set_enable(true);
                     if (arg.value.has_value()) {
-                        LOG.set_output_file(arg.value.value());
+                        LOGGER.set_output_file(arg.value.value());
                     } else {
-                        LOG.set_output_file("114514.log");
+                        LOGGER.set_output_file("114514.log");
                     }
                 }
             },

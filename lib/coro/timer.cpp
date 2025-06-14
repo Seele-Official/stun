@@ -38,7 +38,7 @@ namespace coro::timer {
         for (auto& it : tasks){
             if (it.second.handle == handle){
                 tasks.erase(it.first);
-                LOG.log("cancelling task: {}\n", tohex(handle.address()));
+                LOG("cancelling task: {}\n", tohex(handle.address()));
                 return true;
             }
         }

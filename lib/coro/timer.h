@@ -53,7 +53,7 @@ namespace coro::timer {
         inline bool submit(duration_t delay, std::coroutine_handle<> handle){
             std::lock_guard lock{m};
             tasks.emplace(std::chrono::steady_clock::now() + delay, task{handle});
-            LOG.log("submitting task: {}\n", tohex(handle.address()));
+            LOG("submitting task: {}\n", tohex(handle.address()));
             cv.notify_one();
             return true;
         }
@@ -75,7 +75,7 @@ namespace coro::timer {
     inline void cancel(std::coroutine_handle<> handle){
         if (timer::get_instance().cancel(handle)){
             handle.destroy();
-            LOG.log("destroying task: {}\n", tohex(handle.address()));
+            LOG("destroying task: {}\n", tohex(handle.address()));
         }
     }
 
@@ -91,7 +91,7 @@ namespace coro::timer {
             }
 
             auto final_suspend() noexcept{
-                LOG.log("final suspend {}\n", tohex(this));
+                LOG("final suspend {}\n", tohex(this));
                 return std::suspend_never{};
             }
             void unhandled_exception() {  }

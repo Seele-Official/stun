@@ -22,7 +22,7 @@ endif()
 set(SOURCES
     "main.cpp"
     "nat_test.cpp"
-    "../lib/timer.cpp"
+    "../lib/coro/timer.cpp"
     "../lib/net_core.cpp"
     "../core/stun.cpp"
     ${PLATFORM_SOURCES}

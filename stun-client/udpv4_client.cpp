@@ -1,7 +1,7 @@
 #include "client.h"
 #include "net_core.h"
 #include "stun.h"
-#include "timer.h"
+#include "coro/timer.h"
 #include <chrono>
 #include <cstddef>
 
@@ -17,13 +17,13 @@ private:
     void listener(std::stop_token st){
         while(!st.stop_requested()){
             constexpr size_t buffer_size = 1024;
-            alignas(stunHeader) std::byte buffer[buffer_size];
+            alignas(stun::header) std::byte buffer[buffer_size];
             ipv4info ipinfo;
             // check validity
-            if (udp.recvfrom(ipinfo, buffer, buffer_size).has_value() && stunMessage::is_valid(buffer)){
+            if (udp.recvfrom(ipinfo, buffer, buffer_size).has_value() && stun::message::is_valid(buffer)){
                                 
-                auto msg = stunMessage{buffer};
-                LOG.log("received from {}:{} to:{}\n{}", my_inet_ntoa(ipinfo.net_address), math::ntoh(ipinfo.net_port), math::ntoh(my_addr.net_port), msg.toString());
+                auto msg = stun::message{buffer};
+                LOG("received from {}:{} to:{}\n{}", my_inet_ntoa(ipinfo.net_address), math::ntoh(ipinfo.net_port), math::ntoh(my_addr.net_port), msg.toString());
 
                 this->onResponse(std::move(ipinfo), std::move(msg));
             }
@@ -38,7 +38,7 @@ private:
     }  
 
 
-    coro::timer::delay_task request(const ipv4info& ip, const stunMessage& msg){
+    coro::timer::delay_task request(const ipv4info& ip, const stun::message& msg){
         using std::chrono_literals::operator""ms; 
         constexpr uint64_t retry = 2;
         constexpr std::chrono::milliseconds RTO = 500ms;
@@ -46,7 +46,7 @@ private:
         co_await coro::timer::delay_awaiter{delay};
         for (size_t i = 0; i < retry; i++){
             udp.sendto(ip, msg.data_ptr(), msg.size());
-            LOG.async_log("sending from:{} to {}:{} \n{}", math::ntoh(my_addr.net_port), my_inet_ntoa(ip.net_address), math::ntoh(ip.net_port), msg.toString());
+            ASYNC_LOG("sending from:{} to {}:{} \n{}", math::ntoh(my_addr.net_port), my_inet_ntoa(ip.net_address), math::ntoh(ip.net_port), msg.toString());
             delay = delay*2 + RTO;
             co_await coro::timer::delay_awaiter{delay};
         }
