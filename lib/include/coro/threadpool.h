@@ -5,10 +5,10 @@
 #include <condition_variable>
 #include <list>
 #include <coroutine>
-namespace coro::thread{
+namespace seele::coro::thread{
 
     template <size_t pool_size>
-    class thread_pool{
+    class thread_pool_impl{
     private:
         std::jthread threads[pool_size];
 
@@ -42,7 +42,7 @@ namespace coro::thread{
 
     public:
         static auto& get_instance(){
-            static thread_pool instance;
+            static thread_pool_impl instance;
             return instance;
         } 
 
@@ -52,7 +52,7 @@ namespace coro::thread{
             cv.notify_one();
         }
 
-        thread_pool(){
+        thread_pool_impl(){
             for(auto& t: threads){
                 t = std::jthread([this](std::stop_token st){
                     this->worker(st);
@@ -60,7 +60,7 @@ namespace coro::thread{
             }
         }
 
-        ~thread_pool(){
+        ~thread_pool_impl(){
             for(auto& t: threads){
                 t.request_stop();
             }
@@ -70,7 +70,7 @@ namespace coro::thread{
     };
 
     inline auto dispatch(std::coroutine_handle<> handle) {
-        thread_pool<1>::get_instance().submit(handle);
+        thread_pool_impl<2>::get_instance().submit(handle);
     }    
 
     struct dispatch_awaiter{

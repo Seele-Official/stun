@@ -1,8 +1,8 @@
-#include "timer.h"
+#include "coro/timer.h"
 
-namespace coro::timer {
+namespace seele::coro::timer {
 
-    void timer::worker(std::stop_token st){
+    void timer_impl::worker(std::stop_token st){
         using std::chrono_literals::operator""ms; 
         
         while(!st.stop_requested()){
@@ -32,13 +32,13 @@ namespace coro::timer {
     }
 
 
-    bool timer::cancel(std::coroutine_handle<> handle){
+    bool timer_impl::cancel(std::coroutine_handle<> handle){
         std::lock_guard lock{m};
 
         for (auto& it : tasks){
             if (it.second.handle == handle){
                 tasks.erase(it.first);
-                LOG("cancelling task: {}\n", tohex(handle.address()));
+                LOG("cancelling task: {}\n", math::tohex(handle.address()));
                 return true;
             }
         }

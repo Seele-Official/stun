@@ -4,7 +4,7 @@
 #include <cstring>
 #include <vector>
 #include <expected>
-#include "net_core.h"
+#include "math.h"
 
 
 
@@ -17,7 +17,7 @@ namespace stun {
         auto operator<=>(const txn_id_t&) const = default;
         txn_id_t(const txn_id_t&) = default;
         operator std::string() const {
-            return tohex(*this);
+            return math::tohex(*this);
         }
     };
 
@@ -45,7 +45,7 @@ namespace stun {
 
 }
 
-#include "stunAttribute.h"
+#include "stunAttribute.inl"
 
 namespace stun {
     class message {

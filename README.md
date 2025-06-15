@@ -17,7 +17,7 @@ Options:
 - `-t`: Identify the NAT type your client is behind to understand its behavior in network communications.
 
 ## NAT discover
-![](NAT%20discover.png)
+![](./doc/NAT%20discover.png)
 
 
 

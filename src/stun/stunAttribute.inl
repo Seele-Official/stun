@@ -1,7 +1,6 @@
 #pragma once
 #include <cstdint>
 #include <type_traits>
-#include "net_core.h"
 #include "stun.h"
 namespace stun {
     using namespace math;
@@ -73,8 +72,15 @@ namespace stun {
     struct ipv4_xor_mappedAddress : public attr {
         uint8_t zero;
         uint8_t family;
-        uint16_t x_port;
-        uint32_t x_address;
+        uint16_t net_x_port;
+        uint32_t net_x_address;
+
+        inline uint16_t get_net_port() const {
+            return net_x_port ^ stun::MAGIC_COOKIE;
+        }
+        inline uint32_t get_net_address() const {
+            return net_x_address ^ stun::MAGIC_COOKIE;
+        }
         constexpr static uint16_t getid(){ return stun::attribute::XOR_MAPPED_ADDRESS;}
     };
 

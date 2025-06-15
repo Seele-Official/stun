@@ -19,27 +19,17 @@ if (CMAKE_CXX_COMPILER_VERSION VERSION_LESS "14.0")
     message(FATAL_ERROR "GCC version must be at least 14.0 to support full C++23 features. Detected version: ${CMAKE_CXX_COMPILER_VERSION}")
 endif()
 
-set(SOURCES
-    "main.cpp"
-    "nat_test.cpp"
-    "../lib/coro/timer.cpp"
-    "../lib/net_core.cpp"
-    "../core/stun.cpp"
-    ${PLATFORM_SOURCES}
-)
+file(GLOB_RECURSE SOURCES CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp")
 
+add_subdirectory(lib)
 
 add_executable(stun-client ${SOURCES})
 
 # link libraries
-if (CMAKE_SYSTEM_NAME STREQUAL "Windows")
-    target_link_libraries(stun-client ws2_32)
-    target_link_libraries(stun-client Iphlpapi)
-endif()
+target_link_libraries(stun-client PRIVATE seele-lib)
 
 
-target_include_directories(stun-client PRIVATE ../lib)
-target_include_directories(stun-client PRIVATE ../core)
+target_include_directories(stun-client PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src/stun)
 
 install(TARGETS stun-client
         RUNTIME DESTINATION bin)

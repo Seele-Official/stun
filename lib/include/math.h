@@ -1,10 +1,10 @@
 #pragma once
-#include <algorithm>
 #include <concepts>
 #include <random>
 #include <cstdint>
 #include <array>
 #include <expected>
+#include <format>
 namespace math {
     template <std::integral T>
     T random(T min, T max) {
@@ -63,23 +63,18 @@ namespace math {
         }
         return num;
     }
-
-    template<std::integral T>
-    constexpr std::string itostr(T num) {
-        if (num == 0) return "0";
-        std::string str;
-        bool is_negative = false;
-        if (num < 0) {
-            is_negative = true;
-            num = -num;
+    constexpr auto tohex(void* ptr, size_t size){
+        std::string str{"0x"};
+        for (size_t i = 0; i < size; i++){
+            constexpr char e[] = "0123456789ABCDEF";
+            str += std::format("{}{}", e[((uint8_t*)ptr)[i] >> 4], e[((uint8_t*)ptr)[i] & 0xF]);
         }
-        while (num > 0) {
-            str.push_back('0' + (num % 10));
-            num /= 10;
-        }
-        if (is_negative) str.push_back('-');
-        std::reverse(str.begin(), str.end());
         return str;
-    } 
+    }
+
+    template <typename T>
+    constexpr auto tohex(T struct_t){
+        return math::tohex(&struct_t, sizeof(T));
+    }
 }
 

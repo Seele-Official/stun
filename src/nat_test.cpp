@@ -1,16 +1,16 @@
-#include "nat_test.h"
-#include "log.h"
-#include "net_core.h"
-#include "stun.h"
-#include "stunAttribute.h"
 #include <cstdint>
 #include <expected>
-std::expected<uint8_t, std::string> maping_test(clientImpl& c, ipv4info& server_addr, ipv4info& server_altaddr, ipv4info& first_x_maddr){
-    
+
+#include "nat_test.h"
+#include "log.h"
+#include "net.h"
+#include "stun.h"
+std::expected<uint8_t, std::string> maping_test(clientImpl& c, seele::net::ipv4& server_addr, seele::net::ipv4& server_altaddr, seele::net::ipv4& first_x_maddr){
+
     stun::message ipmaping_test_msg(stun::msg_method::BINDING | stun::msg_type::REQUEST);
     
     auto res = c.async_req(
-        ipv4info{
+        seele::net::ipv4{
             server_altaddr.net_address,
             server_addr.net_port
         }, ipmaping_test_msg)
@@ -27,9 +27,9 @@ std::expected<uint8_t, std::string> maping_test(clientImpl& c, ipv4info& server_
         return std::unexpected("server has undefined behavior");
     }
 
-    ipv4info second_x_maddr{
-        x_addr->x_address ^ stun::MAGIC_COOKIE, 
-        static_cast<uint16_t>(x_addr->x_port ^ stun::MAGIC_COOKIE)
+    seele::net::ipv4 second_x_maddr{
+        x_addr->get_net_address(), 
+        x_addr->get_net_port()
     };
 
     if (first_x_maddr == second_x_maddr){
@@ -50,16 +50,16 @@ std::expected<uint8_t, std::string> maping_test(clientImpl& c, ipv4info& server_
         return std::unexpected("server has undefined behavior");
     }
 
-    ipv4info third_x_maddr{
-        x_addr2->x_address ^ stun::MAGIC_COOKIE, 
-        static_cast<uint16_t>(x_addr2->x_port ^ stun::MAGIC_COOKIE)
+    seele::net::ipv4 third_x_maddr{
+        x_addr2->get_net_address(),
+        x_addr2->get_net_port()
     };
 
     return first_x_maddr == third_x_maddr ? address_dependent_mapping : address_and_port_dependent_mapping;
 
 }
 
-uint8_t filtering_test(clientImpl& c, ipv4info& server_addr){
+uint8_t filtering_test(clientImpl& c, seele::net::ipv4& server_addr){
 
     stun::message ipfiltering_test_msg(stun::msg_method::BINDING | stun::msg_type::REQUEST);
     
@@ -80,7 +80,7 @@ uint8_t filtering_test(clientImpl& c, ipv4info& server_addr){
         address_dependent_filtering : address_and_port_dependent_filtering;
 }
 
-std::expected<nat_type, std::string> nat_test(clientImpl &c, ipv4info server_addr){
+std::expected<nat_type, std::string> nat_test(clientImpl &c, seele::net::ipv4 server_addr){
 
     stun::message udp_test_msg(stun::msg_method::BINDING | stun::msg_type::REQUEST);
 
@@ -93,9 +93,9 @@ std::expected<nat_type, std::string> nat_test(clientImpl &c, ipv4info server_add
     auto [x_addr, otheraddr] = responce_msg.find<stun::ipv4_xor_mappedAddress, stun::ipv4_otherAddress>();
     if (otheraddr == nullptr || x_addr == nullptr) return std::unexpected("server does not support stun-behavior");
 
-    ipv4info first_x_maddr{
-        x_addr->x_address ^ stun::MAGIC_COOKIE, 
-        static_cast<uint16_t>(x_addr->x_port ^ stun::MAGIC_COOKIE)
+    seele::net::ipv4 first_x_maddr{
+        x_addr->get_net_address(),
+        x_addr->get_net_port()
     }, server_altaddr{
         otheraddr->address,
         otheraddr->port
@@ -129,7 +129,7 @@ std::expected<nat_type, std::string> nat_test(clientImpl &c, ipv4info server_add
 
 }
 
-std::expected<ipv4info, std::string> build_binding(clientImpl& c, ipv4info& server_addr){
+std::expected<seele::net::ipv4, std::string> build_binding(clientImpl& c, seele::net::ipv4& server_addr){
     stun::message ip_test_msg(stun::msg_method::BINDING | stun::msg_type::REQUEST);
     auto res = c.async_req(server_addr, ip_test_msg)
                     .get_as_rvalue();
@@ -140,13 +140,13 @@ std::expected<ipv4info, std::string> build_binding(clientImpl& c, ipv4info& serv
     auto x_addr = responce_msg.find_one<stun::ipv4_xor_mappedAddress>();
     if (x_addr == nullptr) return std::unexpected("server does not support stun-behavior");
 
-    return ipv4info{
-        x_addr->x_address ^ stun::MAGIC_COOKIE, 
-        static_cast<uint16_t>(x_addr->x_port ^ stun::MAGIC_COOKIE)
+    return seele::net::ipv4{
+        x_addr->get_net_address(), 
+        x_addr->get_net_port()
     };
 }
 
-std::expected<uint64_t, std::string> lifetime_test(clientImpl& X, clientImpl& Y, ipv4info& server_addr) {
+std::expected<uint64_t, std::string> lifetime_test(clientImpl& X, clientImpl& Y, seele::net::ipv4& server_addr) {
     // Phase 1: Exponential search
     constexpr uint64_t ACCEPTABLE_ERROR = 15;
     uint64_t low = 0;
@@ -161,7 +161,7 @@ std::expected<uint64_t, std::string> lifetime_test(clientImpl& X, clientImpl& Y,
 
         auto x_addr = std::get<1>(res.value()).find_one<stun::ipv4_xor_mappedAddress>();
         if (!x_addr) return std::unexpected("server does not support stun-behavior");
-        uint16_t X_port = x_addr->x_port ^ stun::MAGIC_COOKIE;
+        uint16_t X_port = x_addr->get_net_port();
 
         std::this_thread::sleep_for(std::chrono::seconds(lifetime));
 
@@ -183,7 +183,7 @@ std::expected<uint64_t, std::string> lifetime_test(clientImpl& X, clientImpl& Y,
             if (err->error_code == stun::E420_UNKNOWN_ATTRIBUTE) {
                 std::string err_msg = "Unsupported attributes:";
                 for (size_t i = 0; i < err->length/sizeof(uint16_t); i++) {
-                    err_msg += tohex(math::ntoh(err->unknown_attributes[i]));
+                    err_msg += math::tohex(math::ntoh(err->unknown_attributes[i]));
                 }
                 return std::unexpected(err_msg);
             }
@@ -205,7 +205,7 @@ std::expected<uint64_t, std::string> lifetime_test(clientImpl& X, clientImpl& Y,
 
         auto x_addr = std::get<1>(res.value()).find_one<stun::ipv4_xor_mappedAddress>();
         if (!x_addr) return std::unexpected("server has undefined behavior");
-        uint16_t X_port = x_addr->x_port ^ stun::MAGIC_COOKIE;
+        uint16_t X_port = x_addr->get_net_port();
 
         std::this_thread::sleep_for(std::chrono::seconds(mid));
 

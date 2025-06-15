@@ -1,14 +1,14 @@
-#include "nat_test.h"
-#include "net_core.h"
-#include "opts.h"
-#include "visit_var.h"
 #include <cstdint>
 #include <iostream>
 #include <string>
 #include <string_view>
 #include <utility>
 
-std::expected<ipv4info, std::string> parse_addr(std::string_view addr){
+#include "nat_test.h"
+#include "net.h"
+#include "opts.h"
+#include "meta.h"
+std::expected<seele::net::ipv4, std::string> parse_addr(std::string_view addr){
 
     auto pos = addr.find(':');
     if (pos == std::string_view::npos){
@@ -18,15 +18,15 @@ std::expected<ipv4info, std::string> parse_addr(std::string_view addr){
     auto ip = addr.substr(0, pos);
     auto port = addr.substr(pos + 1);
 
-    auto ipaddr = my_inet_addr(ip);
+    auto ipaddr = seele::net::inet_addr(ip);
     if (!ipaddr.has_value()){
         return std::unexpected(std::format("parse ip error: {}", ipaddr.error()));
     }
     auto portnum = math::stoi(port);
     if (!portnum.has_value()){
-        return std::unexpected(std::format("parse port error: unexpected char '{}'", tohex(portnum.error())));
+        return std::unexpected(std::format("parse port error: unexpected char '{}'", math::tohex(portnum.error())));
     }
-    return ipv4info{ipaddr.value(), math::hton<uint16_t>(portnum.value())};
+    return seele::net::ipv4{ipaddr.value(), math::hton<uint16_t>(portnum.value())};
 }
 
 
@@ -37,23 +37,20 @@ int main(int argc, char* argv[]){
     SetConsoleCP(65001);
     SetConsoleOutputCP(65001);
     #endif
-    opts options = {
-        {
-            ruler::no_arg("--help", "-h"),
-            ruler::no_arg("--query-all-addr", "-q"),
-            ruler::opt_arg("--build-binding", "-b"),
-            ruler::no_arg("--nat-type", "-t"),
-            ruler::no_arg("--nat-lifetime", "-s"),
-            ruler::req_arg("--interface_index", "-i"),
-            ruler::opt_arg("--log", "-l")
-        }
-    };
-
+    auto options = seele::opts::make_opts(
+            seele::opts::ruler::no_arg("--help", "-h"),
+            seele::opts::ruler::no_arg("--query-all-addr", "-q"),
+            seele::opts::ruler::opt_arg("--build-binding", "-b"),
+            seele::opts::ruler::no_arg("--nat-type", "-t"),
+            seele::opts::ruler::no_arg("--nat-lifetime", "-s"),
+            seele::opts::ruler::req_arg("--interface_index", "-i"),
+            seele::opts::ruler::opt_arg("--log", "-l")
+    );
     bool flag[256] = {};
     uint32_t interface_index = 0;
     uint16_t bind_port = 0;
     
-    pos_arg p_args;
+    seele::opts::pos_arg p_args;
 
     auto parser = options.parse(argc, argv);
     for (auto&& item : parser) {
@@ -61,8 +58,8 @@ int main(int argc, char* argv[]){
             std::cout << "Error: " << item.error() << "\n";
             return 1;
         }
-        visit_var(item.value(), 
-            [&](no_arg& arg) {
+        seele::meta::visit_var(item.value(), 
+            [&](seele::opts::no_arg& arg) {
                 if (arg.long_name == "--help") {
                     std::cout << std::format("Usage: {} <server_addr>\n options:\n", argv[0]);
                     std::cout << "  -b, --build-binding <bind_port>?: build binding by specified port\n";
@@ -74,10 +71,10 @@ int main(int argc, char* argv[]){
                     std::exit(0);
                 }
                 else if (arg.long_name == "--query-all-addr") {
-                    auto res = query_all_device_ip();
+                    auto res = seele::net::query_all_device_ip();
                     for (auto& [index, addr] : res){
                         auto& [name, ip] = addr;
-                        std::cout << std::format("[{:0>2}] {}: {}\n", index, reinterpret_cast<const char*>(name.c_str()), my_inet_ntoa(ip));
+                        std::cout << std::format("[{:0>2}] {}: {}\n", index, reinterpret_cast<const char*>(name.c_str()), seele::net::inet_ntoa(ip));
 
                     }   
                     std::exit(0);
@@ -89,7 +86,7 @@ int main(int argc, char* argv[]){
                     flag['s'] = true;
                 }
             },
-            [&](req_arg& arg) {
+            [&](seele::opts::req_arg& arg) {
                 if (arg.long_name == "--interface_index") {
                     flag['i'] = true;
                     auto e = math::stoi(arg.value);
@@ -100,7 +97,7 @@ int main(int argc, char* argv[]){
                     interface_index = e.value();
                 }
             },
-            [&](opt_arg& arg) {
+            [&](seele::opts::opt_arg& arg) {
                 if (arg.long_name == "--build-binding") {
                     flag['b'] = true;
                     if (arg.value.has_value()) {
@@ -111,7 +108,7 @@ int main(int argc, char* argv[]){
                         }
                         bind_port = math::hton<uint16_t>(e.value());
                     } else {
-                        bind_port = random_pri_iana_net_port();
+                        bind_port = seele::net::random_pri_iana_net_port();
                     }
                 } else if (arg.long_name == "--log") {
                     LOGGER.set_enable(true);
@@ -122,7 +119,7 @@ int main(int argc, char* argv[]){
                     }
                 }
             },
-            [&](pos_arg& arg) {
+            [&](seele::opts::pos_arg& arg) {
                 p_args = std::move(arg);
             }
         );
@@ -131,7 +128,7 @@ int main(int argc, char* argv[]){
 
 
 
-    std::expected<ipv4info, std::string> server_addr;
+    std::expected<seele::net::ipv4, std::string> server_addr;
     
     if (p_args.values.size() == 1){
         server_addr = parse_addr(*p_args.values.begin());
@@ -146,23 +143,23 @@ int main(int argc, char* argv[]){
 
     uint32_t bind_addr = 0;
     if (flag['i']){
-        if ((bind_addr = query_device_ip(interface_index)) == 0){
+        if ((bind_addr = seele::net::query_device_ip(interface_index)) == 0){
             std::cout << std::format("failed to query interface address: {}\nplease use -q to query all device ip\n", interface_index);
             return 1;
         }
     } else {
-        if ((bind_addr = query_device_ip(interface_index)) == 0){
+        if ((bind_addr = seele::net::query_device_ip(interface_index)) == 0){
             std::cout << "failed to auto detect network interface address, please use -i to specify network interface\n";
             return 1;
         }
-        std::cout << std::format("auto detected network interface address: {}\n", my_inet_ntoa(bind_addr));
+        std::cout << std::format("auto detected network interface address: {}\n", seele::net::inet_ntoa(bind_addr));
     }
 
 
     if (flag['s']){
         std::cout << "it may take a while to test nat lifetime, please wait...\n";
 
-        clientImpl X{bind_addr, random_pri_iana_net_port()}, Y{bind_addr, random_pri_iana_net_port()};
+        clientImpl X{bind_addr, seele::net::random_pri_iana_net_port()}, Y{bind_addr, seele::net::random_pri_iana_net_port()};
         auto res = lifetime_test(X, Y, server_addr.value());
 
         if (res.has_value()){
@@ -172,7 +169,7 @@ int main(int argc, char* argv[]){
         }
     }
     if (flag['t']){
-        clientImpl c{bind_addr, flag['b'] ? bind_port : random_pri_iana_net_port()};
+        clientImpl c{bind_addr, flag['b'] ? bind_port : seele::net::random_pri_iana_net_port()};
 
         auto res = nat_test(c, server_addr.value());
     
@@ -222,7 +219,7 @@ int main(int argc, char* argv[]){
         }
     
         std::cout << "nat type: ";
-        switch (nat.filtering_type | nat.mapping_type)
+        switch (nat.type())
         {
         case full_cone:
             std::cout << "full cone\n";

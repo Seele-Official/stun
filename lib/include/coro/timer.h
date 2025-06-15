@@ -1,28 +1,17 @@
 #pragma once
-#include "log.h"
-#include "net_core.h"
-#include "threadpool.h"
 #include <chrono>
 #include <coroutine>
 #include <thread>
 #include <condition_variable>
-#include <type_traits>
-
-
-
-namespace coro::timer {
-
-    template <typename T, template <typename...> class Template>
-    struct is_specialization_of : std::false_type {};
-
-    template <template <typename...> class Template, typename... Args>
-    struct is_specialization_of<Template<Args...>, Template> : std::true_type {};
-
-    template <typename T, template <typename...> class Template>
-    constexpr bool is_specialization_of_v = is_specialization_of<T, Template>::value;
+#include <map>
+#include "log.h"
+#include "threadpool.h"
+#include "meta.h"
+#include "math.h"
+namespace seele::coro::timer {
 
     class delay_task;
-    class timer {
+    class timer_impl {
     private:
         std::jthread thread;
         std::condition_variable cv;
@@ -32,7 +21,7 @@ namespace coro::timer {
             std::coroutine_handle<> handle;
 
             inline void async_run(){
-                coro::thread::dispatch(handle);
+                seele::coro::thread::dispatch(handle);
             }
 
             inline task(std::coroutine_handle<> handle) : handle{handle} {}
@@ -44,38 +33,38 @@ namespace coro::timer {
     public:
 
 
-        static inline timer& get_instance(){
-            static timer instance{};
+        static inline timer_impl& get_instance(){
+            static timer_impl instance{};
             return instance;
         }
         template<typename duration_t>
-            requires is_specialization_of_v<duration_t, std::chrono::duration>
+            requires seele::meta::is_specialization_of_v<duration_t, std::chrono::duration>
         inline bool submit(duration_t delay, std::coroutine_handle<> handle){
             std::lock_guard lock{m};
             tasks.emplace(std::chrono::steady_clock::now() + delay, task{handle});
-            LOG("submitting task: {}\n", tohex(handle.address()));
+            LOG("submitting task: {}\n", math::tohex(handle.address()));
             cv.notify_one();
             return true;
         }
 
         bool cancel(std::coroutine_handle<> handle);
 
-        inline explicit timer() : thread{
+        inline explicit timer_impl() : thread{
                 [this](std::stop_token st){
                     this->worker(st);
                 }
             }, tasks{} {}
 
-        inline ~timer(){
+        inline ~timer_impl(){
             thread.request_stop();
             cv.notify_one();
         }
     };
 
     inline void cancel(std::coroutine_handle<> handle){
-        if (timer::get_instance().cancel(handle)){
+        if (timer_impl::get_instance().cancel(handle)){
             handle.destroy();
-            LOG("destroying task: {}\n", tohex(handle.address()));
+            LOG("destroying task: {}\n", math::tohex(handle.address()));
         }
     }
 
@@ -91,7 +80,7 @@ namespace coro::timer {
             }
 
             auto final_suspend() noexcept{
-                LOG("final suspend {}\n", tohex(this));
+                LOG("final suspend {}\n", math::tohex(this));
                 return std::suspend_never{};
             }
             void unhandled_exception() {  }
@@ -124,25 +113,25 @@ namespace coro::timer {
 
         void cancel(){
             if (handle){
-                coro::timer::cancel(handle);
+                seele::coro::timer::cancel(handle);
             }
         }
     };
     template<typename duration_t>
-        requires is_specialization_of_v<duration_t, std::chrono::duration>
+        requires seele::meta::is_specialization_of_v<duration_t, std::chrono::duration>
     inline auto delay(duration_t delay, std::coroutine_handle<> handle) {
-        return coro::timer::timer::get_instance().submit(delay, handle);
+        return seele::coro::timer::timer_impl::get_instance().submit(delay, handle);
     }
 
     template<typename duration_t>
-        requires is_specialization_of_v<duration_t, std::chrono::duration>
+        requires seele::meta::is_specialization_of_v<duration_t, std::chrono::duration>
     struct delay_awaiter{
         duration_t delay;
 
         bool await_ready() { return false; }
 
         void await_suspend(std::coroutine_handle<> handle) {
-            coro::timer::delay(delay, handle);
+            seele::coro::timer::delay(delay, handle);
         }
 
         void await_resume() {}

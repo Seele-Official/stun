@@ -1,8 +1,8 @@
 #include <cstdint>
 #include <expected>
-#include "udpv4_client.cpp"
+#include "client.h"
 
-using clientImpl = udpv4_client;
+using clientImpl = client_udpv4;
 
 
 
@@ -28,8 +28,12 @@ struct nat_type
 {
     uint8_t filtering_type;
     uint8_t mapping_type;
+
+    uint8_t type() const {
+        return filtering_type | mapping_type;
+    }
 };
 
-std::expected<ipv4info, std::string> build_binding(clientImpl& c, ipv4info& server_addr);
-std::expected<nat_type, std::string> nat_test(clientImpl &c, ipv4info server_addr);
-std::expected<uint64_t, std::string> lifetime_test(clientImpl& X, clientImpl& Y, ipv4info& server_addr);
+std::expected<seele::net::ipv4, std::string> build_binding(clientImpl& c, seele::net::ipv4& server_addr);
+std::expected<nat_type, std::string> nat_test(clientImpl &c, seele::net::ipv4 server_addr);
+std::expected<uint64_t, std::string> lifetime_test(clientImpl& X, clientImpl& Y, seele::net::ipv4& server_addr);
