@@ -48,7 +48,7 @@ namespace seele{
     };
 
     inline auto logger_impl::with_loc(std::source_location loc) {
-        return [loc, this]<typename... args_t>(const std::format_string<args_t...>& fmt, args_t&&... args) {
+        return [loc, this]<typename... args_t>(std::format_string<args_t...> fmt, args_t&&... args) {
             if (!enabled) return;
             std::lock_guard lock(mutex);
             std::format_to(
@@ -73,7 +73,7 @@ namespace seele{
             auto&& func = this->with_loc(loc);
             seele::coro::async(
                 std::forward<decltype(func)>(func),
-                std::move(fmt), std::forward<args_t>(args)...
+                fmt, std::forward<args_t>(args)...
             );
         };
 
