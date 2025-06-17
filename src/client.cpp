@@ -1,4 +1,5 @@
 #include "client.h"
+#include "log.h"
 
 
 
@@ -11,7 +12,7 @@ void client_udpv4::listener(std::stop_token st){
         if (udp.recvfrom(ipinfo, buffer, buffer_size).has_value() && stun::message::is_valid(buffer)){
                             
             auto msg = stun::message{buffer};
-            LOG("received from {}:{} to:{}\n{}", seele::net::inet_ntoa(ipinfo.net_address), math::ntoh(ipinfo.net_port), math::ntoh(my_addr.net_port), msg.toString());
+            seele::log::sync().info("received from {}:{} to:{}\n{}", seele::net::inet_ntoa(ipinfo.net_address), math::ntoh(ipinfo.net_port), math::ntoh(my_addr.net_port), msg.toString());
 
             this->onResponse(std::move(ipinfo), std::move(msg));
         }
@@ -34,7 +35,7 @@ seele::coro::timer::delay_task client_udpv4::request(const seele::net::ipv4& ip,
     co_await seele::coro::timer::delay_awaiter{delay};
     for (size_t i = 0; i < retry; i++){
         udp.sendto(ip, msg.data_ptr(), msg.size());
-        ASYNC_LOG("sending from:{} to {}:{} \n{}", math::ntoh(my_addr.net_port), seele::net::inet_ntoa(ip.net_address), math::ntoh(ip.net_port), msg.toString());
+        seele::log::async().info("sending from:{} to {}:{} \n{}", math::ntoh(my_addr.net_port), seele::net::inet_ntoa(ip.net_address), math::ntoh(ip.net_port), msg.toString());
         delay = delay*2 + RTO;
         co_await seele::coro::timer::delay_awaiter{delay};
     }

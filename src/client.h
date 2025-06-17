@@ -59,7 +59,7 @@ public:
             std::lock_guard lock{m};
             auto it = txns.find(msg.get_txn_id());
             if (it != txns.end()){
-                LOG("transaction {} on response\n", math::tohex(it->first));
+                seele::log::sync().info("transaction {} on response\n", math::tohex(it->first));
                 it->second.awaiter->response = std::move(std::make_tuple(std::move(ip), std::move(msg)));
                 it->second.handle.resume();
                 txns.erase(it);
@@ -72,7 +72,7 @@ public:
 
             auto it = txns.find(txn_id);
             if (it != txns.end()){
-                LOG("transaction {} on timeout\n", math::tohex(it->first));
+                seele::log::sync().info("transaction {} on timeout\n", math::tohex(it->first));
                 it->second.awaiter->response = std::unexpected("Timeout");
                 it->second.handle.resume();
                 txns.erase(it);

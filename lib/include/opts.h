@@ -18,40 +18,38 @@ namespace seele::opts{
             required_argument,
             optional_argument
         };
-        const char* short_name;
-        const char* long_name;
+        std::string_view short_name;
+        std::string_view long_name;
         const type_t type;
 
-        consteval ruler(const char* long_name, type_t t, const char* short_name = "") : short_name(short_name), long_name(long_name), type(t) {
+        consteval ruler(std::string_view long_name, type_t t, std::string_view short_name = "") : short_name(short_name), long_name(long_name), type(t) {
             #define throw_if(condition, message) \
                 if (condition)  \
                     std::terminate(), message; \
                     // throw message; // if exceptions were allowed
-            std::string_view sn{short_name};
-            std::string_view ln{long_name};
-            if (!sn.empty()){
-                throw_if(sn.size() != 2, "Short option must be exactly 2 characters");
-                throw_if(!sn.starts_with("-"), "Short option must start with '-'");
+            if (!short_name.empty()){
+                throw_if(short_name.size() != 2, "Short option must be exactly 2 characters");
+                throw_if(!short_name.starts_with("-"), "Short option must start with '-'");
             }
-            throw_if(ln.size() <= 3, "Long option must be at least 4 characters");
-            throw_if(!ln.starts_with("--"), "Long option must start with '--'");
+            throw_if(long_name.size() <= 3, "Long option must be at least 4 characters");
+            throw_if(!long_name.starts_with("--"), "Long option must start with '--'");
         }
 
-        static consteval ruler no_arg(const char* ln, const char* sn = "") {
+        static consteval ruler no_arg(std::string_view ln, std::string_view sn = "") {
             return ruler(ln, type_t::no_argument, sn);
         }
 
-        static consteval ruler req_arg(const char* ln, const char* sn = "") {
+        static consteval ruler req_arg(std::string_view ln, std::string_view sn = "") {
             return ruler(ln, type_t::required_argument, sn);
         }
 
-        static consteval ruler opt_arg(const char* ln, const char* sn = "") {
+        static consteval ruler opt_arg(std::string_view ln, std::string_view sn = "") {
             return ruler(ln, type_t::optional_argument, sn);
         }
     };
 
     struct no_arg {
-        const char* short_name;
+        std::string_view short_name;
         std::string_view long_name;
     };
 

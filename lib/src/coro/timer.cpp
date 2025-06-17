@@ -38,7 +38,7 @@ namespace seele::coro::timer {
         for (auto& it : tasks){
             if (it.second.handle == handle){
                 tasks.erase(it.first);
-                LOG("cancelling task: {}\n", math::tohex(handle.address()));
+                seele::log::sync().info("cancelling task: {}\n", math::tohex(handle.address()));
                 return true;
             }
         }

@@ -4,8 +4,20 @@
 #include <cstdlib>
 #include <format>
 #include "net.h"
+namespace std{
+#ifndef HAVE_ALIGNED_ALLOC 
 
+    inline void* aligned_malloc(size_t align, size_t size) {
+        if (size % align) size += align - (size % align);
+        return _aligned_malloc(size, align);
+    }
+    inline void aligned_free(void* p) noexcept { _aligned_free(p); }
 
+#endif
+#ifdef HAVE_ALIGNED_ALLOC
+    inline void aligned_free(void* p) noexcept { std::free(p); }
+#endif
+}
 namespace stun {
 
 
@@ -59,12 +71,12 @@ namespace stun {
     }
 
     message::~message() {
-        if (data) std::free(data);
+        if (data) std::aligned_free(data);
     }
 
     message& message::operator=(message&& other) noexcept {
         if (this != &other) {
-            if (data) std::free(data);
+            if (data) std::aligned_free(data);
             data = other.data;
             header = other.header;
             attributes = std::move(other.attributes);

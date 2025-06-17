@@ -3,6 +3,19 @@ cmake_minimum_required(VERSION 3.15)
 
 project(Client LANGUAGES CXX)
 
+include(CheckCXXSourceCompiles)
+check_cxx_source_compiles("
+  #include <cstdlib>
+  int main() {
+    void *p = std::aligned_alloc(16, 32);
+    (void)p;
+    return 0;
+  }
+" HAVE_ALIGNED_ALLOC)
+
+if(HAVE_ALIGNED_ALLOC)
+  add_compile_definitions(HAVE_ALIGNED_ALLOC=1)
+endif()
 
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)

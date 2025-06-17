@@ -103,7 +103,7 @@ namespace seele::meta {
 
     }
 
-    template <typename T>
+    template <auto T>
     consteval std::string_view type_name() {
         std::string_view name = 
             #if defined(__clang__) || defined(__GNUC__)
@@ -113,10 +113,10 @@ namespace seele::meta {
             #endif
         
     #if defined(__clang__)
-        constexpr std::string_view prefix = "std::string_view seele::meta::type_name() [T = ";
+        constexpr std::string_view prefix = "std::string_view seele::meta::type_name() [auto T = ";
         constexpr std::string_view suffix = "]";
     #elif defined(__GNUC__)
-        constexpr std::string_view prefix = "consteval std::string_view seele::meta::type_name() [with T = ";
+        constexpr std::string_view prefix = "consteval std::string_view seele::meta::type_name() [with auto T = ";
         constexpr std::string_view suffix = "; std::string_view = std::basic_string_view<char>]";
     #endif
         name.remove_prefix(prefix.size());
@@ -124,7 +124,33 @@ namespace seele::meta {
         return name;
     }
 
+    template <typename T, size_t I = 0>
+    consteval auto count_enum_values() {
+        if constexpr (type_name<static_cast<T>(I)>().find('(') != std::string_view::npos) {
+            return I;
+        } else {
+            return count_enum_values<T, I + 1>();
+        }
+    }
 
+    template <typename T>
+    consteval auto enum_name_table() {
+        static_assert(std::is_enum_v<T>, "T must be an enum type");
+        constexpr auto count = count_enum_values<T>();
+
+        return [&]<size_t... Is>(std::index_sequence<Is...>) {
+            auto extract_name = [](std::string_view name) {
+                auto pos = name.find_last_of("::");
+                if (pos != std::string_view::npos) {
+                    return name.substr(pos + 1);
+                }
+                return name;
+            };
+
+            return std::array{extract_name(type_name<static_cast<T>(Is)>())...};
+        }(std::make_index_sequence<count>{});
+
+    }
 
 
 

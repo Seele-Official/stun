@@ -8,15 +8,24 @@
 #include <string_view>
 #include <type_traits>
 #include <utility>
+#include <chrono>
+#include <atomic>
 #include "coro/async.h"
-
-namespace seele{
+#include "meta.h"
+namespace seele::log{    
+    enum class level {
+        error,
+        warn,
+        info,
+        debug,
+        trace
+    };
     class logger_impl {
     private:
         std::atomic<bool> enabled;
         std::mutex mutex;    
-        std::ostream* output;
-    public:
+        std::ostream* output;        
+    
         inline explicit logger_impl() : enabled{false}, output{&std::cout} {}
 
         inline ~logger_impl() {
@@ -24,6 +33,13 @@ namespace seele{
                 delete output;
             }
         }
+
+    public:
+        logger_impl(const logger_impl&) = delete;
+        logger_impl& operator=(const logger_impl&) = delete;
+        logger_impl(logger_impl&&) = delete;
+        logger_impl& operator=(logger_impl&&) = delete;
+
 
         inline static logger_impl& get_instance() {
             static logger_impl inst;
@@ -39,51 +55,132 @@ namespace seele{
         inline void set_output_file(std::string_view filename) {
             this->output = new std::ofstream{filename.data()};
         }
-
-        inline auto with_loc(std::source_location loc = std::source_location::current());
-
-        inline auto async_with_loc(std::source_location loc = std::source_location::current());
-
+        template<typename... args_t>
+        void log(
+            level level,
+            std::source_location loc,
+            std::chrono::system_clock::time_point time,
+            std::format_string<args_t...> fmt,
+            args_t&&... args
+        );
 
     };
 
-    inline auto logger_impl::with_loc(std::source_location loc) {
-        return [loc, this]<typename... args_t>(std::format_string<args_t...> fmt, args_t&&... args) {
-            if (!enabled) return;
-            std::lock_guard lock(mutex);
-            std::format_to(
-                std::ostreambuf_iterator{*output}, 
-                "{}:{}:{}\n",
-                loc.file_name(),
-                loc.line(),
-                loc.column()
-            );
-            std::format_to(
-                std::ostreambuf_iterator{*output}, 
-                fmt,
-                std::forward<args_t>(args)...
-            );
-        };
+    inline auto& logger() {
+        return logger_impl::get_instance();
     }
 
+    template<typename... args_t>
+    void logger_impl::log(level lvl, 
+        std::source_location loc, std::chrono::system_clock::time_point time,
+        std::format_string<args_t...> fmt,args_t&&... args){
 
-    inline auto logger_impl::async_with_loc(std::source_location loc) {
-        return [loc, this]<typename... args_t>(std::format_string<std::decay_t<args_t>&...> fmt, args_t&&... args) {
-            if (!enabled) return;
-            auto&& func = this->with_loc(loc);
+        static auto logLevels = seele::meta::enum_name_table<level>();
+        if (!enabled) return;
+        std::lock_guard lock(mutex);
+        std::format_to(
+            std::ostreambuf_iterator{*output},
+            "[{}] {} {}:{}:{}\n",
+            logLevels[static_cast<int>(lvl)], time, loc.file_name(), loc.line(), loc.column()
+        );
+        std::format_to(
+            std::ostreambuf_iterator{*output},
+            fmt,
+            std::forward<args_t>(args)...
+        );
+    }
+
+    struct sync_agent{
+        std::source_location loc;
+        std::chrono::system_clock::time_point now;
+
+        template<typename... args_t>
+        void error(std::format_string<args_t...> fmt, args_t&&... args){
+            logger().log(
+                level::error, loc, now, fmt, std::forward<args_t>(args)...
+            );
+        }
+
+        template<typename... args_t>
+        void warn(std::format_string<args_t...> fmt, args_t&&... args){
+            logger().log(
+                level::warn, loc, now, fmt, std::forward<args_t>(args)...
+            );
+        }
+
+        template<typename... args_t>
+        void info(std::format_string<args_t...> fmt, args_t&&... args){
+            logger().log(
+                level::info, loc, now, fmt, std::forward<args_t>(args)...
+            );
+        }
+
+        template<typename... args_t>
+        void debug(std::format_string<args_t...> fmt, args_t&&... args){
+            logger().log(
+                level::debug, loc, now, fmt, std::forward<args_t>(args)...
+            );
+        }
+
+        template<typename... args_t>
+        void trace(std::format_string<args_t...> fmt, args_t&&... args){
+            logger().log(
+                level::trace, loc, now, fmt, std::forward<args_t>(args)...
+            );
+        }
+    };
+
+    struct async_agent : sync_agent{
+
+        template<typename... args_t>
+        void error(std::format_string<std::decay_t<args_t>&...> fmt, args_t&&... args){
             seele::coro::async(
-                std::forward<decltype(func)>(func),
-                fmt, std::forward<args_t>(args)...
+                &sync_agent::error<std::decay_t<args_t>&...>,
+                *this, fmt, std::forward<args_t>(args)...
             );
-        };
+        }
 
+        template<typename... args_t>
+        void warn(std::format_string<std::decay_t<args_t>&...> fmt, args_t&&... args){
+            seele::coro::async(
+                &sync_agent::warn<std::decay_t<args_t>&...>,
+                *this, fmt, std::forward<args_t>(args)...
+            );
+        }
+
+        template<typename... args_t>
+        void info(std::format_string<std::decay_t<args_t>&...> fmt, args_t&&... args){
+            seele::coro::async(
+                &sync_agent::info<std::decay_t<args_t>&...>,
+                *this, fmt, std::forward<args_t>(args)...
+            );
+        }
+
+        template<typename... args_t>
+        void debug(std::format_string<std::decay_t<args_t>&...> fmt, args_t&&... args){
+            seele::coro::async(
+                &sync_agent::debug<std::decay_t<args_t>&...>,
+                *this, fmt, std::forward<args_t>(args)...
+            );
+        }
+
+        template<typename... args_t>
+        void trace(std::format_string<std::decay_t<args_t>&...> fmt, args_t&&... args){
+            seele::coro::async(
+                &sync_agent::trace<std::decay_t<args_t>&...>,
+                *this, fmt, std::forward<args_t>(args)...
+            );
+        }
+
+    };
+    
+    inline async_agent async(std::source_location loc = std::source_location::current(), std::chrono::system_clock::time_point now = std::chrono::system_clock::now()) {
+        return async_agent{loc, now};
     }
+
+    inline sync_agent sync(std::source_location loc = std::source_location::current(), std::chrono::system_clock::time_point now = std::chrono::system_clock::now()){
+        return sync_agent{loc, now};
+    }
+
 }
-
-
-#define LOGGER seele::logger_impl::get_instance()
-
-#define LOG LOGGER.with_loc()
-
-#define ASYNC_LOG LOGGER.async_with_loc() 
 

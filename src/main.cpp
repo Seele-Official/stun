@@ -30,10 +30,11 @@ std::expected<seele::net::ipv4, std::string> parse_addr(std::string_view addr){
 }
 
 
-
+#if defined(_WIN32) || defined(_WIN64)
+#include <windows.h>
+#endif
 int main(int argc, char* argv[]){
     #if defined(_WIN32) || defined(_WIN64)
-    // set utf-8 console
     SetConsoleCP(65001);
     SetConsoleOutputCP(65001);
     #endif
@@ -111,11 +112,11 @@ int main(int argc, char* argv[]){
                         bind_port = seele::net::random_pri_iana_net_port();
                     }
                 } else if (arg.long_name == "--log") {
-                    LOGGER.set_enable(true);
+                    seele::log::logger().set_enable(true);
                     if (arg.value.has_value()) {
-                        LOGGER.set_output_file(arg.value.value());
+                        seele::log::logger().set_output_file(arg.value.value());
                     } else {
-                        LOGGER.set_output_file("114514.log");
+                        seele::log::logger().set_output_file("114514.log");
                     }
                 }
             },

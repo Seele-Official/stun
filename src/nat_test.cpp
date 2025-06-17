@@ -154,7 +154,7 @@ std::expected<uint64_t, std::string> lifetime_test(clientImpl& X, clientImpl& Y,
     uint64_t lifetime = 10;
 
     while (true) {
-        ASYNC_LOG("Testing lifetime={}s\n", lifetime);
+        seele::log::async().info("Testing lifetime={}s\n", lifetime);
         stun::message X_msg(stun::msg_method::BINDING | stun::msg_type::REQUEST);
         auto res = X.async_req(server_addr, X_msg).get_as_rvalue();
         if (!res.has_value()) return std::unexpected(res.error());
@@ -197,7 +197,7 @@ std::expected<uint64_t, std::string> lifetime_test(clientImpl& X, clientImpl& Y,
     // Phase 2: Binary search
     while (low < high && high - low > ACCEPTABLE_ERROR) {
         uint64_t mid = low + (high - low) / 2;
-        ASYNC_LOG("Testing lifetime={}s\n", mid);
+        seele::log::async().info("Testing lifetime={}s\n", mid);
 
         stun::message X_msg(stun::msg_method::BINDING | stun::msg_type::REQUEST);
         auto res = X.async_req(server_addr, X_msg).get_as_rvalue();

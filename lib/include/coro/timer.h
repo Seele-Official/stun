@@ -30,25 +30,6 @@ namespace seele::coro::timer {
         std::map<std::chrono::steady_clock::time_point, task> tasks;
         void worker(std::stop_token st);
 
-    public:
-
-
-        static inline timer_impl& get_instance(){
-            static timer_impl instance{};
-            return instance;
-        }
-        template<typename duration_t>
-            requires seele::meta::is_specialization_of_v<duration_t, std::chrono::duration>
-        inline bool submit(duration_t delay, std::coroutine_handle<> handle){
-            std::lock_guard lock{m};
-            tasks.emplace(std::chrono::steady_clock::now() + delay, task{handle});
-            LOG("submitting task: {}\n", math::tohex(handle.address()));
-            cv.notify_one();
-            return true;
-        }
-
-        bool cancel(std::coroutine_handle<> handle);
-
         inline explicit timer_impl() : thread{
                 [this](std::stop_token st){
                     this->worker(st);
@@ -59,12 +40,36 @@ namespace seele::coro::timer {
             thread.request_stop();
             cv.notify_one();
         }
+    public:
+        timer_impl(const timer_impl&) = delete;
+        timer_impl& operator=(const timer_impl&) = delete;
+        timer_impl(timer_impl&&) = delete;
+        timer_impl& operator=(timer_impl&&) = delete;
+        
+
+        static inline timer_impl& get_instance(){
+            static timer_impl instance{};
+            return instance;
+        }
+        template<typename duration_t>
+            requires seele::meta::is_specialization_of_v<duration_t, std::chrono::duration>
+        inline bool submit(duration_t delay, std::coroutine_handle<> handle){
+            std::lock_guard lock{m};
+            tasks.emplace(std::chrono::steady_clock::now() + delay, task{handle});
+            seele::log::sync().info("submitting task: {}\n", math::tohex(handle.address()));
+            cv.notify_one();
+            return true;
+        }
+
+        bool cancel(std::coroutine_handle<> handle);
+
+
     };
 
     inline void cancel(std::coroutine_handle<> handle){
         if (timer_impl::get_instance().cancel(handle)){
             handle.destroy();
-            LOG("destroying task: {}\n", math::tohex(handle.address()));
+            seele::log::sync().info("destroying task: {}\n", math::tohex(handle.address()));
         }
     }
 
@@ -80,7 +85,7 @@ namespace seele::coro::timer {
             }
 
             auto final_suspend() noexcept{
-                LOG("final suspend {}\n", math::tohex(this));
+                seele::log::sync().info("final suspend {}\n", math::tohex(this));
                 return std::suspend_never{};
             }
             void unhandled_exception() {  }

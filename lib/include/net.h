@@ -66,21 +66,7 @@ namespace seele::net{
     };
 
     #if defined(_WIN32) || defined(_WIN64)
-    #include <winsock2.h>
-    class wsainiter{
-    public:
-        WSADATA wsaData;
-        explicit wsainiter(){
-            if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0) {
-                std::exit(1);
-            }
-        }
-        ~wsainiter(){
-            WSACleanup();
-        }
-    };
-    inline static wsainiter wsa{};
-    using socket_t = SOCKET;
+    using socket_t = uint64_t;
     #elif defined(__linux__)
     using socket_t = int;
     #endif

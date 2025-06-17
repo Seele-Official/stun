@@ -3,17 +3,29 @@
 
 
 #if defined(_WIN32) || defined(_WIN64)
-
+#include <winsock2.h>
 #include <ws2tcpip.h>
 #include <iphlpapi.h>
 #include <system_error>
-
-
 namespace seele::net{
+
+    class wsainiter{
+    public:
+        WSADATA wsaData;
+        explicit wsainiter(){
+            if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0) {
+                std::exit(1);
+            }
+        }
+        ~wsainiter(){
+            WSACleanup();
+        }
+    };
+    static wsainiter wsa{};
     udpv4::udpv4(){
         socketfd = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
         if (socketfd == INVALID_SOCKET) {
-            LOG("[ERROR] socket() failed: {}\n", std::system_error(WSAGetLastError(), std::system_category()).what());
+            seele::log::sync().error("socket() failed: {}\n", std::system_error(WSAGetLastError(), std::system_category()).what());
             std::exit(1);
         }
     }
@@ -26,14 +38,14 @@ namespace seele::net{
     }
 
 
-    bool udpv4::bind(ipv4info info){
+    bool udpv4::bind(ipv4 info){
         sockaddr_in local{};
         local.sin_family = AF_INET;
         local.sin_port = info.net_port;
         local.sin_addr.s_addr = info.net_address;
 
         if (::bind(socketfd, (sockaddr*)&local, sizeof(local)) == -1) {
-            LOG("[ERROR] bind() failed: {}\n", std::system_error(WSAGetLastError(), std::system_category()).what());
+            seele::log::sync().error("bind() failed: {}\n", std::system_error(WSAGetLastError(), std::system_category()).what());
             return false;
         }
         return true;
@@ -43,17 +55,17 @@ namespace seele::net{
         DWORD tv = t * 1000;
         if (setsockopt(socketfd, SOL_SOCKET, SO_RCVTIMEO, 
             reinterpret_cast<const char*>(&tv), sizeof(tv)) == -1) {
-            LOG("[ERROR] setsockopt() failed: {}\n", std::system_error(WSAGetLastError(), std::system_category()).what());
+            seele::log::sync().error("setsockopt() failed: {}\n", std::system_error(WSAGetLastError(), std::system_category()).what());
             return false;
         }
         return true;
     }
-    std::expected<size_t, udpv4_error> udpv4::recvfrom(ipv4info& src, void* buffer, size_t buffer_size){
+    std::expected<size_t, udpv4_error> udpv4::recvfrom(ipv4& src, void* buffer, size_t buffer_size){
         sockaddr_in src_addr;
         socklen_t src_addr_len = sizeof(src_addr);
         auto recv_size = ::recvfrom(socketfd, reinterpret_cast<char*>(buffer), buffer_size, 0, reinterpret_cast<sockaddr*>(&src_addr), &src_addr_len);
         if (recv_size == -1){
-            LOG("[ERROR] recvfrom() failed: {}\n", std::system_error(WSAGetLastError(), std::system_category()).what());
+            seele::log::sync().error("recvfrom() failed: {}\n", std::system_error(WSAGetLastError(), std::system_category()).what());
             return std::unexpected{udpv4_error::RECVFROM_ERROR};
         }
         src.net_address = src_addr.sin_addr.s_addr;
@@ -61,13 +73,13 @@ namespace seele::net{
         return recv_size;
     }
 
-    udpv4_error udpv4::sendto(const ipv4info& dest, const void* data, size_t size){
+    udpv4_error udpv4::sendto(const ipv4& dest, const void* data, size_t size){
         sockaddr_in addr;
         addr.sin_family = AF_INET;
         addr.sin_addr.s_addr = dest.net_address;
         addr.sin_port = dest.net_port;
         if (::sendto(socketfd, reinterpret_cast<const char*>(data), size, 0, reinterpret_cast<sockaddr*>(&addr), sizeof(addr)) == -1){
-            LOG("[ERROR] sendto() failed: {}\n", std::system_error(WSAGetLastError(), std::system_category()).what());
+            seele::log::sync().error("sendto() failed: {}\n", std::system_error(WSAGetLastError(), std::system_category()).what());
             return udpv4_error::SENDTO_ERROR;
         }
         return udpv4_error{};
@@ -170,7 +182,7 @@ namespace seele::net{
 
 
 
-    #elif defined(__linux__)
+#elif defined(__linux__)
     #include <sys/types.h>
     #include <sys/socket.h>
     #include <netinet/in.h>
@@ -182,7 +194,7 @@ namespace seele::net{
     udpv4::udpv4(){
         socketfd = socket(AF_INET, SOCK_DGRAM, 0);
         if (socketfd == -1){
-            LOG("[ERROR] socket() failed: {}\n", strerror(errno));
+            seele::log::sync().error("socket() failed: {}\n", strerror(errno));
             std::exit(1);
         }
     }
@@ -215,7 +227,7 @@ namespace seele::net{
         addr.sin_addr.s_addr = info.net_address;
         addr.sin_port = info.net_port;
         if (::bind(socketfd, reinterpret_cast<sockaddr*>(&addr), sizeof(addr)) == -1){
-            LOG("[ERROR] bind() failed: {}\n", strerror(errno));
+            seele::log::sync().error("bind() failed: {}\n", strerror(errno));
             return false;
         }
         
@@ -224,7 +236,7 @@ namespace seele::net{
     bool udpv4::set_timeout(uint32_t t){
         timeval timeout{t, 0};
         if (setsockopt(socketfd, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout)) == -1){
-            LOG("[ERROR] setsockopt() failed: {}\n", strerror(errno));
+            seele::log::sync().error("setsockopt() failed: {}\n", strerror(errno));
             return false;
         }
         return true;
@@ -234,7 +246,7 @@ namespace seele::net{
         socklen_t src_addr_len = sizeof(src_addr);
         ssize_t recv_size = ::recvfrom(socketfd, buffer, buffer_size, 0, reinterpret_cast<sockaddr*>(&src_addr), &src_addr_len);
         if (recv_size == -1){
-            LOG("[ERROR] recvfrom() failed: {}\n", strerror(errno));
+            seele::log::sync().error("recvfrom() failed: {}\n", strerror(errno));
             return std::unexpected{udpv4_error::RECVFROM_ERROR};
         }
         src.net_address = src_addr.sin_addr.s_addr;
@@ -248,7 +260,7 @@ namespace seele::net{
         addr.sin_addr.s_addr = dest.net_address;
         addr.sin_port = dest.net_port;
         if (::sendto(socketfd, data, size, 0, reinterpret_cast<sockaddr*>(&addr), sizeof(addr)) == -1){
-            LOG("[ERROR] sendto() failed: {}\n", strerror(errno));
+            seele::log::sync().error("sendto() failed: {}\n", strerror(errno));
             return udpv4_error::SENDTO_ERROR;
         }
         return udpv4_error{};
@@ -259,7 +271,7 @@ namespace seele::net{
     uint32_t query_device_ip(uint32_t interface_index){
         ifaddrs *ifAddrStruct = nullptr;
         if (getifaddrs(&ifAddrStruct) == -1) {
-            ASYNC_LOG("[ERROR] getifaddrs() failed: {}\n", strerror(errno));
+            seele::log::async().error("getifaddrs() failed: {}\n", strerror(errno));
             return 0;
         }
 
@@ -281,7 +293,7 @@ namespace seele::net{
         std::map<uint32_t, std::tuple<std::u8string, uint32_t>> res;
         ifaddrs *ifAddrStruct = nullptr;
         if (getifaddrs(&ifAddrStruct) == -1) {
-            ASYNC_LOG("[ERROR] getifaddrs() failed: {}\n", strerror(errno));
+            seele::log::async().error("getifaddrs() failed: {}\n", strerror(errno));
             return res;
         }
 
@@ -300,6 +312,5 @@ namespace seele::net{
     }
 
 
-
-    #endif
 }
+#endif
