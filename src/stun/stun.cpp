@@ -7,7 +7,7 @@
 namespace std{
 #ifndef HAVE_ALIGNED_ALLOC 
 
-    inline void* aligned_malloc(size_t align, size_t size) {
+    inline void* aligned_alloc(size_t align, size_t size) {
         if (size % align) size += align - (size % align);
         return _aligned_malloc(size, align);
     }
