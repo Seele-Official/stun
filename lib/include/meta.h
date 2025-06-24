@@ -123,6 +123,26 @@ namespace seele::meta {
         name.remove_suffix(suffix.size());
         return name;
     }
+    template <typename T>
+    consteval std::string_view type_name() {
+        std::string_view name = 
+            #if defined(__clang__) || defined(__GNUC__)
+                __PRETTY_FUNCTION__;  // Clang / GCC
+            #else
+                static_assert(false, "Unsupported compiler");
+            #endif
+        
+    #if defined(__clang__)
+        constexpr std::string_view prefix = "std::string_view seele::meta::type_name() [T = ";
+        constexpr std::string_view suffix = "]";
+    #elif defined(__GNUC__)
+        constexpr std::string_view prefix = "consteval std::string_view seele::meta::type_name() [with T = ";
+        constexpr std::string_view suffix = "; std::string_view = std::basic_string_view<char>]";
+    #endif
+        name.remove_prefix(prefix.size());
+        name.remove_suffix(suffix.size());
+        return name;
+    }
 
     template <typename T, size_t I = 0>
     consteval auto count_enum_values() {

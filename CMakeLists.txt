@@ -39,7 +39,7 @@ add_subdirectory(lib)
 add_executable(stun-client ${SOURCES})
 
 # link libraries
-target_link_libraries(stun-client PRIVATE seele-lib)
+target_link_libraries(stun-client PRIVATE seele)
 
 
 target_include_directories(stun-client PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src/stun)

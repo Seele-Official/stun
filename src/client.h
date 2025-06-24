@@ -8,7 +8,8 @@
 #include "log.h"
 #include "stun.h"
 #include "coro/timer.h"
-#include "net.h"
+#include "net/udpv4.h"
+using namespace seele;
 template <typename Derived, typename ipinfo_t>
 class client{
 public:    
@@ -59,7 +60,7 @@ public:
             std::lock_guard lock{m};
             auto it = txns.find(msg.get_txn_id());
             if (it != txns.end()){
-                seele::log::sync().info("transaction {} on response\n", math::tohex(it->first));
+                log::sync().info("transaction {} on response\n", math::tohex(it->first));
                 it->second.awaiter->response = std::move(std::make_tuple(std::move(ip), std::move(msg)));
                 it->second.handle.resume();
                 txns.erase(it);
@@ -72,7 +73,7 @@ public:
 
             auto it = txns.find(txn_id);
             if (it != txns.end()){
-                seele::log::sync().info("transaction {} on timeout\n", math::tohex(it->first));
+                log::sync().info("transaction {} on timeout\n", math::tohex(it->first));
                 it->second.awaiter->response = std::unexpected("Timeout");
                 it->second.handle.resume();
                 txns.erase(it);
@@ -96,7 +97,7 @@ protected:
         txn_manager::get_instance().onTimeout(txn_id);
     }
 private:
-    seele::coro::timer::delay_task request(const ipinfo_t& ip, const stun::message& msg){
+    coro::timer::delay_task request(const ipinfo_t& ip, const stun::message& msg){
         co_return;
     }
 
@@ -104,7 +105,7 @@ public:
 
     explicit client() = default;
     
-    seele::coro::lazy_task<typename txn_manager::expected_res_t> 
+    coro::lazy_task<typename txn_manager::expected_res_t> 
         async_req(const ipinfo_t& ip, const stun::message& msg){
             typename txn_manager::reg_awaiter awaiter{msg.get_txn_id()};
 
@@ -121,12 +122,12 @@ public:
 };
 
 
-class client_udpv4 : public client<client_udpv4, seele::net::ipv4>{
+class client_udpv4 : public client<client_udpv4, net::ipv4>{
 private:
-    friend class client<client_udpv4, seele::net::ipv4>;
+    friend class client<client_udpv4, net::ipv4>;
 
-    seele::net::udpv4 udp;
-    seele::net::ipv4 my_addr;
+    net::udpv4 udp;
+    net::ipv4 self_addr;
 
     std::jthread listener_thread;
 
@@ -134,11 +135,11 @@ private:
     void start_listener();
 
 
-    seele::coro::timer::delay_task request(const seele::net::ipv4& ip, const stun::message& msg);
+    coro::timer::delay_task request(const net::ipv4& ip, const stun::message& msg);
 
 public:
-    explicit inline client_udpv4(uint32_t net_ip, uint16_t net_port) : my_addr{net_ip, net_port} {
-        if (!udp.bind(seele::net::ipv4{net_ip, net_port})){
+    explicit inline client_udpv4(uint32_t net_ip, uint16_t net_port) : self_addr{net_ip, net_port} {
+        if (!udp.bind(net::ipv4{net_ip, net_port})){
             std::exit(1);
         }
         udp.set_timeout(3);
@@ -146,7 +147,7 @@ public:
     }
 
     ~client_udpv4(){ listener_thread.request_stop(); }
-    inline const seele::net::ipv4& get_my_addr() const { return my_addr; }
+    inline const net::ipv4& get_self_addr() const { return self_addr; }
 
 };
 

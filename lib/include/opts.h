@@ -24,8 +24,7 @@ namespace seele::opts{
 
         consteval ruler(std::string_view long_name, type_t t, std::string_view short_name = "") : short_name(short_name), long_name(long_name), type(t) {
             #define throw_if(condition, message) \
-                if (condition)  \
-                    std::terminate(), message; \
+                if (condition && (std::terminate(), message)){}
                     // throw message; // if exceptions were allowed
             if (!short_name.empty()){
                 throw_if(short_name.size() != 2, "Short option must be exactly 2 characters");
@@ -75,7 +74,7 @@ namespace seele::opts{
 
     template <typename... args_t>
         requires (std::is_same_v<ruler, std::decay_t<args_t>> && ...)
-    opts_impl(args_t&&... args) -> opts_impl<sizeof...(args_t)>;
+    opts_impl(args_t&&...) -> opts_impl<sizeof...(args_t)>;
 
 
     using item = std::variant<
@@ -102,7 +101,6 @@ namespace seele::opts{
             return seele::opts::parse({rs, N}, argc, argv);
         }
     };
-
 
     
     template <typename... args_t>

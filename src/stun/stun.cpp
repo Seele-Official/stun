@@ -3,7 +3,7 @@
 #include <cstdint>
 #include <cstdlib>
 #include <format>
-#include "net.h"
+#include "net/udpv4.h"
 namespace std{
 #ifndef HAVE_ALIGNED_ALLOC 
 
@@ -112,25 +112,25 @@ namespace stun {
                 case stun::attribute::MAPPED_ADDRESS:
                     {
                         auto mappedaddress = attr->as<ipv4_mappedAddress>();
-                        str += std::format("   MAPPED_ADDRESS: {}:{}\n", seele::net::inet_ntoa(mappedaddress->address), ntoh(mappedaddress->port));
+                        str += std::format("   MAPPED_ADDRESS: {}:{}\n", net::inet_ntoa(mappedaddress->address), ntoh(mappedaddress->port));
                     }
                     break;
                 case stun::attribute::XOR_MAPPED_ADDRESS:
                     {
                         auto mappedaddress = attr->as<ipv4_xor_mappedAddress>();
-                        str += std::format("   XOR_MAPPED_ADDRESS: {}:{}\n", seele::net::inet_ntoa(mappedaddress->net_x_address ^ stun::MAGIC_COOKIE), ntoh<uint16_t>(mappedaddress->net_x_port ^ stun::MAGIC_COOKIE));
+                        str += std::format("   XOR_MAPPED_ADDRESS: {}:{}\n", net::inet_ntoa(mappedaddress->net_x_address ^ stun::MAGIC_COOKIE), ntoh<uint16_t>(mappedaddress->net_x_port ^ stun::MAGIC_COOKIE));
                     }
                     break;
                 case stun::attribute::RESPONSE_ORIGIN:
                     {
                         auto responseorigin = attr->as<ipv4_responseOrigin>();
-                        str += std::format("   RESPONSE_ORIGIN: {}:{}\n", seele::net::inet_ntoa(responseorigin->address), ntoh(responseorigin->port));
+                        str += std::format("   RESPONSE_ORIGIN: {}:{}\n", net::inet_ntoa(responseorigin->address), ntoh(responseorigin->port));
                     }
                     break;
                 case stun::attribute::OTHER_ADDRESS:
                     {
                         auto otherAddress = attr->as<ipv4_otherAddress>();
-                        str += std::format("   OTHER_ADDRESS: {}:{}\n", seele::net::inet_ntoa(otherAddress->address), ntoh(otherAddress->port));
+                        str += std::format("   OTHER_ADDRESS: {}:{}\n", net::inet_ntoa(otherAddress->address), ntoh(otherAddress->port));
                     }
                     break;
                 case stun::attribute::SOFTWARE:

@@ -7,8 +7,9 @@
 #include "math.h"
 
 
-
+using namespace seele;
 namespace stun {
+    using namespace math;
     struct txn_id_t {
         uint8_t data[12];
 
@@ -30,7 +31,7 @@ namespace stun {
     };
 
 
-    using namespace math;
+
     namespace msg_type {
         constexpr uint16_t REQUEST = hton<uint16_t>(0x0000);
         constexpr uint16_t INDICATION = hton<uint16_t>(0x0010);

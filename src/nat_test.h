@@ -34,6 +34,6 @@ struct nat_type
     }
 };
 
-std::expected<seele::net::ipv4, std::string> build_binding(clientImpl& c, seele::net::ipv4& server_addr);
-std::expected<nat_type, std::string> nat_test(clientImpl &c, seele::net::ipv4 server_addr);
-std::expected<uint64_t, std::string> lifetime_test(clientImpl& X, clientImpl& Y, seele::net::ipv4& server_addr);
+std::expected<net::ipv4, std::string> build_binding(clientImpl& c, net::ipv4& server_addr);
+std::expected<nat_type, std::string> nat_test(clientImpl &c, net::ipv4 server_addr);
+std::expected<uint64_t, std::string> lifetime_test(clientImpl& X, clientImpl& Y, net::ipv4& server_addr);
