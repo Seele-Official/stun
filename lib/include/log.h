@@ -6,7 +6,7 @@
 #include <ostream>
 #include <source_location>
 #include <string_view>
-#include <type_traits>
+#include <print>
 #include <functional>
 #include <utility>
 #include <chrono>
@@ -64,7 +64,7 @@ namespace seele::log{
             this->output = &os;
         }
         inline void set_output_file(std::string_view filename) {
-            this->output = new std::ofstream{filename.data()};
+            this->output = new std::ofstream{filename.data(), std::ios::app};
         }
 
     };
@@ -81,15 +81,13 @@ namespace seele::log{
         static auto logLevels = seele::meta::enum_name_table<level>();
         if (!enabled) return;
         std::lock_guard lock(mutex);
-        std::format_to(
-            std::ostreambuf_iterator{*output},
-            "[{}] {} {}:{}:{}\n",
-            logLevels[static_cast<int>(lvl)], time, loc.file_name(), loc.line(), loc.column()
-        );
-        std::format_to(
-            std::ostreambuf_iterator{*output},
-            fmt,
-            std::forward<args_t>(args)...
+        std::print(
+            *this->output,
+            "[{}] {} {}:{}:{} from '{}'\n{}",
+            logLevels[static_cast<int>(lvl)], time, loc.file_name(), loc.line(), loc.column(), loc.function_name(),
+            std::format(
+                fmt, std::forward<args_t>(args)...
+            )
         );
     }
 
@@ -147,7 +145,7 @@ namespace seele::log{
             if (!logger().enabled) return;
             seele::coro::async(
                 &logger_impl::log<std::decay_t<args_t>&...>,
-                &logger(), lvl, loc, now, fmt, std::forward<args_t>(args)...
+                std::ref(logger()), lvl, loc, now, fmt, std::forward<args_t>(args)...
             );
         }
         template<typename... args_t>

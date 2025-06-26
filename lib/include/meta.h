@@ -69,19 +69,6 @@ namespace seele::meta {
     struct function_traits : __function_traits<std::decay_t<F>> {};
 
 
-    template <size_t start, size_t end, size_t... I>
-    auto make_index_sequence() {
-        if constexpr (start == end - 1) {
-            return std::index_sequence<start, end, I...>{};
-        } else if constexpr (start > end) {
-            static_assert(start < end, "Start index must be less than end index.");
-            return std::index_sequence<I...>{};
-        } else if constexpr (start == end) {
-            return std::index_sequence<start>{};
-        } else {
-            return make_index_sequence<start, end - 1, end, I...>();
-        }
-    }
 
 
 
@@ -102,6 +89,29 @@ namespace seele::meta {
         }
 
     }
+
+
+
+
+
+    template <typename... args_t>
+    struct type_pack{};
+
+
+    template <size_t start, size_t end, typename... args_t>
+        requires (start <= end && end <= sizeof...(args_t))
+    struct type_slice{
+        template<size_t... I>
+        static constexpr auto apply_impl(std::index_sequence<I...>) {
+            return type_pack<std::tuple_element_t<start + I, std::tuple<args_t...>>...>{};
+        }
+        
+        using types = decltype(apply_impl(std::make_index_sequence<end - start>{}));
+    };
+
+    template <size_t start, size_t end, typename... args_t>
+    using type_slice_t = typename type_slice<start, end, args_t...>::types;
+
 
     template <auto T>
     consteval std::string_view type_name() {
@@ -184,15 +194,20 @@ namespace seele::meta {
     template <typename T, typename... lambda_t>
     concept __visitable_from = (__visitable<T, lambda_t> || ...);
 
-    template <typename T, typename lambda, typename... lambdas_t>
+    template <typename T, typename lambda_t, typename... lambdas_t>
     constexpr size_t __visitable_from_index(size_t count = 0) {
-        if constexpr (__visitable_from<T, lambda>) {
+        if constexpr (__visitable_from<T, lambda_t>) {
             return count;
         } else if constexpr (sizeof...(lambdas_t) == 0) {
             return nops; // No valid lambda provided
         } else {
             return __visitable_from_index<T, lambdas_t...>(count + 1);
         }
+    }
+
+    template <typename T>
+    constexpr size_t __visitable_from_index() {
+        return nops; // No valid lambda provided
     }
 
     template <typename variant_t, typename... lambdas_t>
@@ -229,7 +244,7 @@ namespace seele::meta {
         if constexpr (_is_fallback_lambda_v<variant_t, lambda_t>) {
             return count;
         } else if constexpr (sizeof...(lambdas_t) == 0) {
-            return -1; // No valid lambda provided
+            return nops; // No valid lambda provided
         } else {
             return __fallback_lambda_index<variant_t, lambdas_t...>(count + 1);
         }
@@ -242,6 +257,8 @@ namespace seele::meta {
         requires is_specialization_of_v<std::decay_t<variant_t>, std::variant>
     void visit_var(variant_t&& var, lambdas_t&&... lambdas) {
         constexpr size_t fallback_index = __fallback_lambda_index<variant_t&&, lambdas_t&&...>();
+        
+        auto visitors = std::forward_as_tuple(lambdas...);
         if constexpr (fallback_index == nops) {
             static_assert(
                 __var_visitable_from<variant_t&&, lambdas_t&&...>,
@@ -249,7 +266,7 @@ namespace seele::meta {
                 "Check that lambda argument types are compatible with the value categories "
                 "(e.g., T&, const T&, T&&) of the variant's alternatives."
             );        
-            auto visitors = std::forward_as_tuple(lambdas...);
+            
             std::visit(
                 [&]<typename T>(T&& arg) {
                     constexpr size_t index = __visitable_from_index<T, lambdas_t&&...>();
@@ -258,21 +275,33 @@ namespace seele::meta {
                 std::forward<variant_t>(var)
             );
         } else {
-            std::tuple<lambdas_t&&...> visitors = std::make_tuple(lambdas...);
-            auto fallback_lambda = std::get<fallback_index>(visitors);
-            [&]<typename... args_t>(std::tuple<args_t...> visitors_without_fallback) {
-                std::visit(
-                    [&]<typename T>(T&& arg) {
-                        constexpr size_t index = __visitable_from_index<T, args_t...>();
-                        if constexpr (index != nops) {
-                            std::get<index>(visitors_without_fallback)(std::forward<T>(arg));
+            auto&& fallback_lambda = std::get<fallback_index>(visitors);
+            std::visit(
+                [&]<typename T>(T&& arg) {
+
+                    [&]<typename... A_args, typename... B_args>(type_pack<A_args...>, type_pack<B_args...>) {
+
+                        constexpr size_t A_index = __visitable_from_index<T, A_args...>();
+                        constexpr size_t B_index = __visitable_from_index<T, B_args...>();
+
+                        if constexpr (A_index != nops) {
+                            std::get<A_index>(visitors)(std::forward<T>(arg));
+                        } else if constexpr (B_index != nops) {
+                            std::get<B_index + fallback_index + 1>(visitors)(std::forward<T>(arg));
                         } else {
                             fallback_lambda(std::forward<T>(arg));
                         }
-                    },
-                    std::forward<variant_t>(var)
-                );
-            }(tuple_erase<fallback_index>(visitors));
+
+
+                    }(  
+                        type_slice_t<0, fallback_index, lambdas_t&&...>{},
+                        type_slice_t<fallback_index + 1, sizeof...(lambdas_t), lambdas_t&&...>{}
+                    );
+                },
+                std::forward<variant_t>(var)
+            );
+            
+
         }
     }
 }
