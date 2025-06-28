@@ -279,10 +279,18 @@ namespace seele::net{
             if (it->ifa_addr == nullptr) continue;
 
             if (it->ifa_addr->sa_family == AF_INET) {
-                if (interface_index == 0 && it->ifa_name != std::string_view("lo"))
-                    return ((sockaddr_in*)it->ifa_addr)->sin_addr.s_addr;
-                if (if_nametoindex(it->ifa_name) == interface_index)
-                    return ((sockaddr_in*)it->ifa_addr)->sin_addr.s_addr;
+                if (interface_index == 0 && it->ifa_name != std::string_view("lo")){
+                    auto addr = ((sockaddr_in*)it->ifa_addr)->sin_addr.s_addr;
+                    freeifaddrs(ifAddrStruct);
+                    return addr;
+                }
+                    
+                if (if_nametoindex(it->ifa_name) == interface_index){
+                    auto addr = ((sockaddr_in*)it->ifa_addr)->sin_addr.s_addr;
+                    freeifaddrs(ifAddrStruct);
+                    return addr;
+                }
+                    
             }
         }
         if (ifAddrStruct != nullptr) freeifaddrs(ifAddrStruct);

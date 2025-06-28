@@ -269,8 +269,7 @@ namespace seele::meta {
             
             std::visit(
                 [&]<typename T>(T&& arg) {
-                    constexpr size_t index = __visitable_from_index<T, lambdas_t&&...>();
-                    std::get<index>(visitors)(std::forward<T>(arg));
+                    std::get<__visitable_from_index<T, lambdas_t&&...>()>(visitors)(std::forward<T>(arg));
                 },
                 std::forward<variant_t>(var)
             );
@@ -278,11 +277,9 @@ namespace seele::meta {
             auto&& fallback_lambda = std::get<fallback_index>(visitors);
             std::visit(
                 [&]<typename T>(T&& arg) {
-
                     [&]<typename... A_args, typename... B_args>(type_pack<A_args...>, type_pack<B_args...>) {
-
-                        constexpr size_t A_index = __visitable_from_index<T, A_args...>();
-                        constexpr size_t B_index = __visitable_from_index<T, B_args...>();
+                        constexpr size_t A_index = __visitable_from_index<T, A_args...>(),
+                                         B_index = __visitable_from_index<T, B_args...>();
 
                         if constexpr (A_index != nops) {
                             std::get<A_index>(visitors)(std::forward<T>(arg));
@@ -291,7 +288,6 @@ namespace seele::meta {
                         } else {
                             fallback_lambda(std::forward<T>(arg));
                         }
-
 
                     }(  
                         type_slice_t<0, fallback_index, lambdas_t&&...>{},

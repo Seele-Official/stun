@@ -1,12 +1,15 @@
 #pragma once
 
+#include <climits>
 #include <cstddef>
 #include <mutex>
+#include <semaphore>
 #include <thread>
 #include <condition_variable>
 #include <list>
 #include <coroutine>
 #include <vector>
+#include "struct/ms_queue.h"
 namespace seele::coro::thread {
     
 
@@ -14,11 +17,8 @@ namespace seele::coro::thread {
     private:
         std::vector<std::jthread> workers;
 
-        std::condition_variable cv;
-        std::mutex m;
-
-        std::list<std::coroutine_handle<>> tasks;
-
+        structs::ms_queue<std::coroutine_handle<>> tasks;
+        std::counting_semaphore<> sem;
 
         void worker(std::stop_token st);
 
@@ -26,14 +26,13 @@ namespace seele::coro::thread {
 
     public:
         static auto& get_instance(){
-            static thread_pool_impl instance{2};
+            static thread_pool_impl instance{4};
             return instance;
         } 
 
         auto submit(std::coroutine_handle<> h){
-            std::lock_guard<std::mutex> lock{m};
             tasks.emplace_back(h);
-            cv.notify_one();
+            sem.release();
         }
 
         thread_pool_impl(size_t worker_count);

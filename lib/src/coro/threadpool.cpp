@@ -3,25 +3,14 @@
 namespace seele::coro::thread {
 
     void thread_pool_impl::worker(std::stop_token st){
-        while(!st.stop_requested()){
-            std::coroutine_handle<> h;
-            {
-                std::unique_lock lock{m};
-                if (tasks.empty()){
-                    cv.wait(lock, [&]{
-                        return !tasks.empty() || st.stop_requested();
-                    });
-                    continue;
-                }
-                
-                h = tasks.front();
-                tasks.pop_front();
-            }
+        while(sem.acquire(), !st.stop_requested()){
+            
+           auto h = tasks.pop_front();
 
-            h.resume();
+            h->resume();
         }
     }
-    thread_pool_impl::thread_pool_impl(size_t worker_count) {
+    thread_pool_impl::thread_pool_impl(size_t worker_count) : sem{0} {
         workers.reserve(worker_count);
         for(size_t i = 0; i < worker_count; ++i){
             workers.emplace_back([this](std::stop_token st){
@@ -34,7 +23,7 @@ namespace seele::coro::thread {
         for (auto& worker : workers) {
             worker.request_stop();
         }
-        cv.notify_all();
+        sem.release(workers.size());
     }
 
 

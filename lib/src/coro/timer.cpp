@@ -15,13 +15,14 @@ namespace seele::coro::timer {
             }
 
             auto t = tasks.begin();
+            auto due = t->first;
             if (t->first > std::chrono::steady_clock::now()){
-                cv.wait_until(lock, t->first, [&]{
+                cv.wait_until(lock, due, [&]{
                     return tasks.begin()->first <= std::chrono::steady_clock::now() || st.stop_requested();
                 });
                 continue;
             }
-            
+
             auto task = t->second;
             tasks.erase(t);
 
