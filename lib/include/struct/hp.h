@@ -1,54 +1,84 @@
 #pragma once
-#include <atomic>
 #include <array>
+#include <atomic>
 #include <cstddef>
 #include <list>
-#include <algorithm>
-#include <ranges>
+#include <mutex>
+#include <unordered_map>
+namespace seele::structs {
+    constexpr size_t max_hazard_count = 3;
+    constexpr size_t max_thread_count = 128;
+    constexpr size_t max_retired_count = 128;
 
-namespace seele::hp {
+    struct hazard_record_t {
+        std::array<std::atomic<void*>, max_hazard_count> hps;
+        std::atomic<bool> active;
+    };
 
-    constexpr std::size_t HP_MAX_THREADS   = 128;    // 最大线程数
-    constexpr std::size_t HP_SLOTS_PER_THD = 2;     // 每线程可保护的指针数
-    constexpr std::size_t HP_RECLAIM_BATCH = 64;    // 每收集 64 个待回收节点尝试回收
-
-    struct retired_ptr {
+    struct retired_ptr_t {
         void* ptr;
         auto (*deleter)(void*) -> void;
     };
-
-    struct hazard_record {
-        std::array<std::atomic<void*>, HP_SLOTS_PER_THD> haz{}; // 每 slot 是一个被保护指针
-        std::atomic<bool>                                active{false};
+    
+    struct tls_data_t {
+        hazard_record_t* record;
+        std::list<retired_ptr_t> retired_list;
     };
 
-    extern std::array<hazard_record, HP_MAX_THREADS> g_records;      // 全局固定大小表
 
-    // 记录当前线程的 record + 待回收链表
-    struct tls_data {
-        hazard_record*               record_hzd{nullptr};
-        std::list<retired_ptr>       retired{};
+    class hazard_manager {
+    private:
+        std::array<hazard_record_t, max_thread_count> records;
+        std::list<retired_ptr_t> g_retired;
+        std::mutex g_retired_mutex;
+        struct tls_map_t 
+        :std::unordered_map<hazard_manager*, tls_data_t>
+        {
+            ~tls_map_t();
+        };
 
-        ~tls_data();
-        void clear(std::size_t idx);
+        static thread_local tls_map_t tls_map;
+
+        hazard_record_t* allocate_record();
+        void deallocate_record(hazard_record_t* record);
+
+        tls_data_t& local_tls();
+        void collect_thread_unretired(std::list<retired_ptr_t>& retireds);
+
+        void scan_retired(std::list<retired_ptr_t>& retired_list);
+        void scan_tls_retired();
+
+    public:
+        template<size_t index>
+            requires (index < max_hazard_count)
+        void protect(void* ptr){
+            this->local_tls().record
+                ->hps[index].store(ptr, std::memory_order_release);
+        }
+
+
+        template<size_t index>
+            requires (index < max_hazard_count)
+        void clear(){
+            this->local_tls().record
+                ->hps[index].store(nullptr, std::memory_order_release);
+        }
+
         void clear_all();
-        void push_retired(retired_ptr r);
-        void scan();
+
+        template<typename T>
+        void retire(T* ptr){
+            this->local_tls().retired_list.push_back({ptr, [](void* p){ delete static_cast<T*>(p); }});
+            this->scan_tls_retired();
+        }
+        hazard_manager() = default;
+
+        hazard_manager(const hazard_manager&) = delete;
+        hazard_manager& operator=(const hazard_manager&) = delete;
+        hazard_manager(hazard_manager&&) = delete;
+        hazard_manager& operator=(hazard_manager&&) = delete;
+
+        ~hazard_manager();
     };
 
-    extern tls_data& local_tls();
-    hazard_record* acquire_record();
-    void* protect(std::size_t idx, void* p);
-    void clear(std::size_t idx);
-
-    template<typename T>
-    void retire(T* p) {
-        hp::local_tls().push_retired(
-            {
-                p, 
-                [](void* q){ delete static_cast<T*>(q); }
-            }
-        );
-    }
-
-} 
+} // namespace seele::structs
